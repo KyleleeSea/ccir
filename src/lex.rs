@@ -3,7 +3,7 @@ use std::fs;
 use std::vec::Vec;
 use super::types;
 
-pub fn lexer() {
+pub fn lexer() -> Vec<types::Token> {
     // Read command line file
     let args: Vec<String> = env::args().collect();
 
@@ -15,49 +15,33 @@ pub fn lexer() {
     // Skip all whitespace and newlines by stripping immediately
     contents.retain(|c| !c.is_whitespace());
 
-    let intlit_acc: Option<String> = None;
-    let id_acc: Option<String> = None;
+    let mut intlit_acc: Option<String> = None;
+    let mut id_acc: Option<String> = None;
 
-    let mut chars = contents.chars();
+    let chars = contents.chars();
     let mut tknStack = Vec::new();
 
-    // Case 1) intlit None, runningid None, singleton character
-    // Then add that singleton character to the stack and continue
-
-    // Case 2) intlit None, runningid None, run into intlit char
-    // Start accumulating and continue
-
-    // Case 3) intlit None, runningid None, run into id char
-    // Start accumulating and continue
-
-    // Case 4) intlit some, runningid none, run into intlit char, not end
-    // keep accumulating
-
-    // Case 5) intlit some, runningid none, run into intlit char, is end
-    // add to stack
-
-    // Case 6) intlit some, runningid none, run into non intlit char
-    // add to stack
-
-
-
     for c in chars {
-        // if intLit none --> do nothing
-        // if intLit some and character is special --> push
-        // if intLit some and character is int --> do nothing
-
+        // If intLit accumulated and we encounter non intLit character, push
         match intlit_acc {
-            Some (inner) => match c {
-                '0' ... '9' => (),
-                _ => tknStack.push(identifierToToken(intlit_acc))
+            Some (ref _inner) => match c {
+                '0' ..= '9' => (),
+                _ => {
+                    tknStack.push(identifierToToken(intlit_acc));
+                    intlit_acc = None;
+                }
             },
-            None => ()
+            None => (),
         }
 
+        // If identif accumulated and we encounter non identif character, push
         match id_acc {
-            Some (inner) => if c.is_alphabetic() || c == '_' => ()
-                else tknStack.push(identifierToToken(id_acc))
-            _ => ()
+            Some (ref _inner) => if !c.is_alphabetic() && !(c == '_')
+                {
+                    tknStack.push(identifierToToken(id_acc));
+                    id_acc = None;
+                }
+            _ => (),
         }
 
         match c {
@@ -66,27 +50,41 @@ pub fn lexer() {
             '(' => tknStack.push(types::Token::TOpenParen),
             ')' => tknStack.push(types::Token::TCloseParen),
             ';' => tknStack.push(types::Token::TSemicolon),
-            '0' ... '9' => ????,
-            c @ '_' | c if c.is_alphabetic() => tokenize_ident(data)
-            .chain_err(|| "Couldn't tokenize an identifier")?,
-        other => bail!(ErrorKind::UnknownCharacter(other)),
-        }
-        println!("char is {}", c);
+            '0' ..= '9' => match intlit_acc {
+                None => 
+                    intlit_acc = Some(c.to_string()),
+                Some (inner) => 
+                    intlit_acc = Some(format!("{}{}",inner.clone(), c.to_string())),
+            },
+            _ => if c.is_alphabetic() || c == '_' {
+                match id_acc {
+                    None => 
+                        id_acc = Some(c.to_string()),
+                    Some (inner) => 
+                        id_acc = Some(format!("{}{}", inner.clone(), c.to_string())),
+                }
+            }
+            else {
+                panic!("Unrecognized character");
+            }
     }
+}
 
-    // let mut tknStack = Vec::new();
-
-    // tokenize(contents, tknStack);
-
-    // println!("With text:\n{contents}");
+return tknStack;
 }
 
 fn identifierToToken(id: Option<String>) -> types::Token {
     match id {
         None => panic!("called identifierToToken on None, shouldn't happen"),
-        Some ("return") => types::Token::TReturn,
-        Some ("int") => types::Token::TInt,
-        Some (inner) => Types::Token::TIdentifier(inner)
+        Some (inner) => match inner.as_str()
+            {
+                "return" => types::Token::TReturn,
+                "int" => types::Token::TInt,
+                _ => types::Token::TIdentifier(inner),
+            }
+        // Some ("return") => types::Token::TReturn,
+        // Some ("int") => types::Token::TInt,
+        // Some (inner) => types::Token::TIdentifier(inner)
     }
 }
 
@@ -94,18 +92,6 @@ fn intLitToToken(intLit: Option<String>) -> types::Token {
     match intLit {
         None => panic!("called intLitToToken on None, shouldn't happen"), 
         // Cast to int
-        Some (inner) => Types::Token::TIntLit(intLit.parse::<i64>().unwrap();)
+        Some (inner) => types::Token::TIntLit(inner.parse::<i64>().unwrap()),
     }
 }
-
-// fn tokenize(contents: String, tknStack: Vec<types::Token>) {
-//     let mut chars = contents.chars();
-
-//     for c in chars {
-//         println!("next {}", chars.next().unwrap());
-//     }
-// }
-
-// fn tokenize_single_token(contents: String, tkn_stack: Vec, prev: TknAcc) {
-
-// }

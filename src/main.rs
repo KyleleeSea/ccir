@@ -2,9 +2,11 @@ mod types;
 mod lex;
 mod parse;
 mod gen;
+mod debug;
 
 fn main() {
-    lex::lexer();
+    let tknStack = lex::lexer();
+    debug::print_TknVec(tknStack);
     // types::types_test();
     // lex::lex_test();
     // parse::parse_test();

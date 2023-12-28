@@ -37,7 +37,8 @@ pub enum Token {
     TWhile,
     TDo,
     TBreak,
-    TContinue
+    TContinue,
+    TComma,
 }
 
 pub enum LexerFlag {

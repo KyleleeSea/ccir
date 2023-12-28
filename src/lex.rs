@@ -152,6 +152,7 @@ pub fn lexer() -> Vec<types::Token> {
             '^' => tkn_stack.push(types::Token::TXor),
             ':' => tkn_stack.push(types::Token::TColon),
             '?' => tkn_stack.push(types::Token::TQuestion),
+            ',' => tkn_stack.push(types::Token::TComma),
             '0' ..= '9' => match intlit_acc {
                 // begin accumulating an intlit
                 None => 

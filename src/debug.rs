@@ -18,6 +18,22 @@ pub fn print_tkn_vec(tkn_stack: Vec<types::Token>) {
             types::Token::TAdd => println!("+"),
             types::Token::TMultiply => println!("*"),
             types::Token::TDivide => println!("/"),
+            types::Token::TBitAnd => println!("&"),
+            types::Token::TBitOr => println!("|"),
+            types::Token::TXor => println!("^"),
+            types::Token::TLShift => println!("<<"),
+            types::Token::TRShift => println!(">>"),
+            types::Token::TAnd => println!("&&"),
+            types::Token::TOr => println!("||"),
+            types::Token::TAssign => println!("="),
+            types::Token::TEq => println!("=="),
+            types::Token::TNeq => println!("!="),
+            types::Token::TLess => println!("<"),
+            types::Token::TLeq => println!("<="),
+            types::Token::TGreater => println!(">"),
+            types::Token::TGeq => println!(">="),
+            types::Token::TMod => println!("%"),
+
         }
     }
 }

@@ -18,6 +18,12 @@ pub fn lexer() -> Vec<types::Token> {
 
     let mut intlit_acc: Option<String> = None;
     let mut id_acc: Option<String> = None;
+    let mut amp_flag: bool = false;
+    let mut excl_flag: bool = false;
+    let mut pipe_flag: bool = false;
+    let mut eq_flag: bool = false;
+    let mut less_flag: bool = false;
+    let mut greater_flag: bool = false;
 
     let chars = contents.chars();
     let mut tkn_stack = Vec::new();
@@ -32,6 +38,32 @@ pub fn lexer() -> Vec<types::Token> {
 
     // Currently does not support comments
     for c in chars {
+        if excl_flag {
+            if c == '=' {
+                tkn_stack.push(types::Token::TNeq);
+                excl_flag = false;
+                continue;
+            }
+            else {
+                tkn_stack.push(types::Token::TLNeg);
+                excl_flag = false;
+            }
+        }
+
+        if amp_flag {
+            if c == '&' {
+                tkn_stack.push(types::Token::TAnd);
+                amp_flag = false;
+                continue;
+            }
+            else {
+                tkn_stack.push(types::Token::TBitAnd);
+                amp_flag = false;
+            }
+        }
+
+
+
         // If intLit accumulated and we encounter non intLit character, push
         match intlit_acc {
             Some (ref _inner) => match c {
@@ -68,10 +100,16 @@ pub fn lexer() -> Vec<types::Token> {
             ';' => tkn_stack.push(types::Token::TSemicolon),
             '-' => tkn_stack.push(types::Token::TNeg),
             '~' => tkn_stack.push(types::Token::TBitComp),
-            '!' => tkn_stack.push(types::Token::TLNeg),
+            '!' => excl_flag = true,
             '+' => tkn_stack.push(types::Token::TAdd),
             '*' => tkn_stack.push(types::Token::TMultiply),
             '/' => tkn_stack.push(types::Token::TDivide),
+            '%' => tkn_stack.push(types::Token::TMod),
+            '&' => amp_flag = true,
+            '|' => pipe_flag = true,
+            '=' => eq_flag = true,
+            '<' => less_flag = true,
+            '>' => greater_flag = true,
             '0' ..= '9' => match intlit_acc {
                 // begin accumulating an intlit
                 None => 

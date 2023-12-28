@@ -14,4 +14,29 @@ pub enum Token {
     TAdd,
     TMultiply,
     TDivide,
+    TBitAnd,
+    TBitOr,
+    TXor,
+    TLShift,
+    TRShift,
+    TAnd,
+    TOr,
+    TAssign,
+    TEq,
+    TNeq,
+    TLess,
+    TLeq,
+    TGreater,
+    TGeq,
+    TMod,
+}
+
+pub enum LexerFlag {
+    None,
+    Amp,
+    Excl,
+    Pipe,
+    Eq,
+    Less,
+    Greater
 }

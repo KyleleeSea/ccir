@@ -33,9 +33,71 @@ pub fn lexer() -> Vec<types::Token> {
 
     // Currently does not support comments
     for c in chars {
-        if handle_compound(flag, c, tkn_stack) 
-        {
-            continue;
+        // Handle compounds like &&, ||, >>, etc
+        match flag {
+            types::LexerFlag::NoFlag => (),
+            types::LexerFlag::Amp => if c == '&' {
+                tkn_stack.push(types::Token::TAnd);
+                flag = types::LexerFlag::NoFlag;
+                continue;
+            }
+            else {
+                tkn_stack.push(types::Token::TBitAnd);
+            },
+            types::LexerFlag::Pipe => if c == '|' {
+                tkn_stack.push(types::Token::TOr);
+                flag = types::LexerFlag::NoFlag;
+                continue;
+            }
+            else {
+                tkn_stack.push(types::Token::TBitOr)
+            },
+            types::LexerFlag::Excl => if c == '=' {
+                tkn_stack.push(types::Token::TNeq);
+                flag = types::LexerFlag::NoFlag;
+                continue;
+            }
+            else {
+                tkn_stack.push(types::Token::TLNeg);
+            },
+            types::LexerFlag::Eq => if c == '=' {
+                tkn_stack.push(types::Token::TEq);
+                flag = types::LexerFlag::NoFlag;
+                continue;
+            }
+            else {
+                tkn_stack.push(types::Token::TAssign);
+            },
+            types::LexerFlag::Less => if c == '<' {
+                tkn_stack.push(types::Token::TLShift);
+                flag = types::LexerFlag::NoFlag;
+                continue;
+            }
+            else {
+                if c == '=' {
+                    tkn_stack.push(types::Token::TLeq);
+                    flag = types::LexerFlag::NoFlag;
+                    continue;
+                }
+                else {
+                    tkn_stack.push(types::Token::TLess);
+                }
+            },
+            types::LexerFlag::Greater => if c == '>' {
+                tkn_stack.push(types::Token::TRShift);
+                flag = types::LexerFlag::NoFlag;
+                continue;
+            }
+            else {
+                if c == '=' {
+                    tkn_stack.push(types::Token::TGeq);
+                    flag = types::LexerFlag::NoFlag;
+                    continue;
+                }
+                else {
+                    tkn_stack.push(types::Token::TGreater);
+                }
+            },
         }
 
         flag = types::LexerFlag::NoFlag;
@@ -57,6 +119,10 @@ pub fn lexer() -> Vec<types::Token> {
             None => (),
             Some (ref inner) => match inner.as_str() {
                 "int" => {
+                    tkn_stack.push(identifier_to_token(id_acc));
+                    id_acc = None;
+                },
+                "return" => {
                     tkn_stack.push(identifier_to_token(id_acc));
                     id_acc = None;
                 },
@@ -86,6 +152,7 @@ pub fn lexer() -> Vec<types::Token> {
             '=' => flag = types::LexerFlag::Eq,
             '<' => flag = types::LexerFlag::Less,
             '>' => flag = types::LexerFlag::Greater,
+            '^' => tkn_stack.push(types::Token::TXor),
             '0' ..= '9' => match intlit_acc {
                 // begin accumulating an intlit
                 None => 
@@ -131,72 +198,4 @@ fn intLit_to_token(int_lit: Option<String>) -> types::Token {
         // Cast to int
         Some (inner) => types::Token::TIntLit(inner.parse::<i64>().unwrap()),
     }
-}
-
-// return true if need to continue (i.e. skip the current token
-// in the loop), false otherwise
-fn handle_compound(flag: types::LexerFlag, c: char, 
-    tkn_stack: Vec<types::Token>) -> bool
-{
-    let mut should_continue = false;
-    match flag {
-        types::LexerFlag::NoFlag => should_continue = false,
-        types::LexerFlag::Amp => if c == '&' {
-            tkn_stack.push(types::Token::TAnd);
-            should_continue = true;
-        }
-        else {
-            tkn_stack.push(types::Token::TBitAnd);
-        },
-        types::LexerFlag::Pipe => if c == '|' {
-            tkn_stack.push(types::Token::TOr);
-            should_continue = true;
-        }
-        else {
-            tkn_stack.push(types::Token::TBitOr)
-        },
-        types::LexerFlag::Excl => if c == '=' {
-            tkn_stack.push(types::Token::TNeg);
-            should_continue = true;
-        }
-        else {
-            tkn_stack.push(types::Token::TLNeg);
-        },
-        types::LexerFlag::Eq => if c == '=' {
-            tkn_stack.push(types::Token::TEq);
-            should_continue = true;
-        }
-        else {
-            tkn_stack.push(types::Token::TAssign);
-        },
-        types::LexerFlag::Less => if c == '<' {
-            tkn_stack.push(types::Token::TLShift);
-            should_continue = true;
-        }
-        else {
-            if c == '=' {
-                tkn_stack.push(types::Token::TLeq);
-                should_continue = true; 
-            }
-            else {
-                tkn_stack.push(types::Token::TLess);
-            }
-        },
-        types::LexerFlag::Greater => if c == '>' {
-            tkn_stack.push(types::Token::TRShift);
-            should_continue = true;
-        }
-        else {
-            if c == '=' {
-                tkn_stack.push(types::Token::TGeq);
-                should_continue = true; 
-            }
-            else {
-                tkn_stack.push(types::Token::TGreater);
-            }
-        },
-    }
-
-    return should_continue
-
 }

@@ -29,6 +29,10 @@ pub enum Token {
     TGreater,
     TGeq,
     TMod,
+    TIf,
+    TElse,
+    TColon,
+    TQuestion
 }
 
 pub enum LexerFlag {

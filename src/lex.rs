@@ -118,11 +118,7 @@ pub fn lexer() -> Vec<types::Token> {
         match id_acc {
             None => (),
             Some (ref inner) => match inner.as_str() {
-                "int" => {
-                    tkn_stack.push(identifier_to_token(id_acc));
-                    id_acc = None;
-                },
-                "return" => {
+                "int" | "return" | "if" | "else" => {
                     tkn_stack.push(identifier_to_token(id_acc));
                     id_acc = None;
                 },
@@ -153,6 +149,8 @@ pub fn lexer() -> Vec<types::Token> {
             '<' => flag = types::LexerFlag::Less,
             '>' => flag = types::LexerFlag::Greater,
             '^' => tkn_stack.push(types::Token::TXor),
+            ':' => tkn_stack.push(types::Token::TColon),
+            '?' => tkn_stack.push(types::Token::TQuestion),
             '0' ..= '9' => match intlit_acc {
                 // begin accumulating an intlit
                 None => 
@@ -187,6 +185,8 @@ fn identifier_to_token(id: Option<String>) -> types::Token {
             {
                 "return" => types::Token::TReturn,
                 "int" => types::Token::TInt,
+                "if" => types::Token::TIf,
+                "else" => types::Token::TElse,
                 _ => types::Token::TIdentifier(inner),
             }
     }

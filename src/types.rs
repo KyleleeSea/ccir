@@ -7,5 +7,8 @@ pub enum Token {
     TInt,
     TReturn,
     TIdentifier(String),
-    TIntLit(i64)
+    TIntLit(i64),
+    TNeg,
+    TBitComp,
+    TLNeg,
 }

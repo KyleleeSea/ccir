@@ -66,6 +66,9 @@ pub fn lexer() -> Vec<types::Token> {
             '(' => tkn_stack.push(types::Token::TOpenParen),
             ')' => tkn_stack.push(types::Token::TCloseParen),
             ';' => tkn_stack.push(types::Token::TSemicolon),
+            '-' => tkn_stack.push(types::Token::TNeg),
+            '~' => tkn_stack.push(types::Token::TBitComp),
+            '!' => tkn_stack.push(types::Token::TLNeg),
             '0' ..= '9' => match intlit_acc {
                 // begin accumulating an intlit
                 None => 

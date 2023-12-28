@@ -12,6 +12,9 @@ pub fn print_tkn_vec(tkn_stack: Vec<types::Token>) {
             types::Token::TReturn => println!("return"),
             types::Token::TIdentifier(inner_str) => println!("{}", inner_str),
             types::Token::TIntLit(inner_num) => println!("{}", inner_num),
+            types::Token::TNeg => println!("-"),
+            types::Token::TBitComp => println!("~"),
+            types::Token::TLNeg => println!("!"),
         }
     }
 }

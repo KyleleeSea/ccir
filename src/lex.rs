@@ -18,12 +18,7 @@ pub fn lexer() -> Vec<types::Token> {
 
     let mut intlit_acc: Option<String> = None;
     let mut id_acc: Option<String> = None;
-    let mut amp_flag: bool = false;
-    let mut excl_flag: bool = false;
-    let mut pipe_flag: bool = false;
-    let mut eq_flag: bool = false;
-    let mut less_flag: bool = false;
-    let mut greater_flag: bool = false;
+    let mut flag: types::LexerFlag = types::LexerFlag::NoFlag;
 
     let chars = contents.chars();
     let mut tkn_stack = Vec::new();
@@ -38,31 +33,12 @@ pub fn lexer() -> Vec<types::Token> {
 
     // Currently does not support comments
     for c in chars {
-        if excl_flag {
-            if c == '=' {
-                tkn_stack.push(types::Token::TNeq);
-                excl_flag = false;
-                continue;
-            }
-            else {
-                tkn_stack.push(types::Token::TLNeg);
-                excl_flag = false;
-            }
+        if handle_compound(flag, c, tkn_stack) 
+        {
+            continue;
         }
 
-        if amp_flag {
-            if c == '&' {
-                tkn_stack.push(types::Token::TAnd);
-                amp_flag = false;
-                continue;
-            }
-            else {
-                tkn_stack.push(types::Token::TBitAnd);
-                amp_flag = false;
-            }
-        }
-
-
+        flag = types::LexerFlag::NoFlag;
 
         // If intLit accumulated and we encounter non intLit character, push
         match intlit_acc {
@@ -100,16 +76,16 @@ pub fn lexer() -> Vec<types::Token> {
             ';' => tkn_stack.push(types::Token::TSemicolon),
             '-' => tkn_stack.push(types::Token::TNeg),
             '~' => tkn_stack.push(types::Token::TBitComp),
-            '!' => excl_flag = true,
+            '!' => flag = types::LexerFlag::Excl,
             '+' => tkn_stack.push(types::Token::TAdd),
             '*' => tkn_stack.push(types::Token::TMultiply),
             '/' => tkn_stack.push(types::Token::TDivide),
             '%' => tkn_stack.push(types::Token::TMod),
-            '&' => amp_flag = true,
-            '|' => pipe_flag = true,
-            '=' => eq_flag = true,
-            '<' => less_flag = true,
-            '>' => greater_flag = true,
+            '&' => flag = types::LexerFlag::Amp,
+            '|' => flag = types::LexerFlag::Pipe,
+            '=' => flag = types::LexerFlag::Eq,
+            '<' => flag = types::LexerFlag::Less,
+            '>' => flag = types::LexerFlag::Greater,
             '0' ..= '9' => match intlit_acc {
                 // begin accumulating an intlit
                 None => 
@@ -155,4 +131,72 @@ fn intLit_to_token(int_lit: Option<String>) -> types::Token {
         // Cast to int
         Some (inner) => types::Token::TIntLit(inner.parse::<i64>().unwrap()),
     }
+}
+
+// return true if need to continue (i.e. skip the current token
+// in the loop), false otherwise
+fn handle_compound(flag: types::LexerFlag, c: char, 
+    tkn_stack: Vec<types::Token>) -> bool
+{
+    let mut should_continue = false;
+    match flag {
+        types::LexerFlag::NoFlag => should_continue = false,
+        types::LexerFlag::Amp => if c == '&' {
+            tkn_stack.push(types::Token::TAnd);
+            should_continue = true;
+        }
+        else {
+            tkn_stack.push(types::Token::TBitAnd);
+        },
+        types::LexerFlag::Pipe => if c == '|' {
+            tkn_stack.push(types::Token::TOr);
+            should_continue = true;
+        }
+        else {
+            tkn_stack.push(types::Token::TBitOr)
+        },
+        types::LexerFlag::Excl => if c == '=' {
+            tkn_stack.push(types::Token::TNeg);
+            should_continue = true;
+        }
+        else {
+            tkn_stack.push(types::Token::TLNeg);
+        },
+        types::LexerFlag::Eq => if c == '=' {
+            tkn_stack.push(types::Token::TEq);
+            should_continue = true;
+        }
+        else {
+            tkn_stack.push(types::Token::TAssign);
+        },
+        types::LexerFlag::Less => if c == '<' {
+            tkn_stack.push(types::Token::TLShift);
+            should_continue = true;
+        }
+        else {
+            if c == '=' {
+                tkn_stack.push(types::Token::TLeq);
+                should_continue = true; 
+            }
+            else {
+                tkn_stack.push(types::Token::TLess);
+            }
+        },
+        types::LexerFlag::Greater => if c == '>' {
+            tkn_stack.push(types::Token::TRShift);
+            should_continue = true;
+        }
+        else {
+            if c == '=' {
+                tkn_stack.push(types::Token::TGeq);
+                should_continue = true; 
+            }
+            else {
+                tkn_stack.push(types::Token::TGreater);
+            }
+        },
+    }
+
+    return should_continue
+
 }

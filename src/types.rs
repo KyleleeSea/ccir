@@ -32,7 +32,7 @@ pub enum Token {
 }
 
 pub enum LexerFlag {
-    None,
+    NoFlag,
     Amp,
     Excl,
     Pipe,

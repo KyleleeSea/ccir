@@ -32,7 +32,12 @@ pub enum Token {
     TIf,
     TElse,
     TColon,
-    TQuestion
+    TQuestion,
+    TFor,
+    TWhile,
+    TDo,
+    TBreak,
+    TContinue
 }
 
 pub enum LexerFlag {

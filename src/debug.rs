@@ -37,8 +37,11 @@ pub fn print_tkn_vec(tkn_stack: Vec<types::Token>) {
             types::Token::TIf => print!("if "),
             types::Token::TElse => print!("else "),
             types::Token::TQuestion => print!("? "),
-
-
+            types::Token::TFor => print!("for "),
+            types::Token::TWhile => print!("while "),
+            types::Token::TDo => print!("do "),
+            types::Token::TBreak => print!("break "),
+            types::Token::TContinue => print!("continue "),
         }
     }
 }

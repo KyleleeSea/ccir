@@ -42,6 +42,7 @@ pub fn print_tkn_vec(tkn_stack: Vec<types::Token>) {
             types::Token::TDo => print!("do "),
             types::Token::TBreak => print!("break "),
             types::Token::TContinue => print!("continue "),
+            types::Token::TComma => print!(", "),
         }
     }
 }

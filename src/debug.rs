@@ -15,6 +15,9 @@ pub fn print_tkn_vec(tkn_stack: Vec<types::Token>) {
             types::Token::TNeg => println!("-"),
             types::Token::TBitComp => println!("~"),
             types::Token::TLNeg => println!("!"),
+            types::Token::TAdd => println!("+"),
+            types::Token::TMultiply => println!("*"),
+            types::Token::TDivide => println!("/"),
         }
     }
 }

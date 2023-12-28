@@ -11,4 +11,7 @@ pub enum Token {
     TNeg,
     TBitComp,
     TLNeg,
+    TAdd,
+    TMultiply,
+    TDivide,
 }

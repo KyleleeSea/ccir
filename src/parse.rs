@@ -7,28 +7,50 @@ use super::types::ASTTree;
 
 use super::debug::print_ast;
 
+pub fn chk_semi(tokens: &mut VecDeque<Token>) {
+    if tokens.pop_front() != Some(Token::TSemicolon) {
+        panic!("Parse semicolon fail");
+    }
+}
 
 /*
     Grammar:
-    <exp> ::= "return" TIntLit(i64) TSemicolon
+    <statement> ::= "return" <exp> ";"
 */
-pub fn parse_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
+pub fn parse_statement(tokens: &mut VecDeque<Token>) -> ASTTree {
     if tokens.pop_front() != Some(Token::TReturn) {
         panic!("Parse exp return fail");
     }
 
-    let int_lit;
-    match tokens.pop_front() {
-        Some(Token::TIntLit(x)) => int_lit = x,
-        _ => panic!("Parse exp int fail"),
-    }
+    let exp = parse_exp(tokens);
+    chk_semi(tokens);
 
-    if tokens.pop_front() != Some(Token::TSemicolon) {
-        panic!("Parse exp semicolon fail");
-    }
-    let int_const = ASTTree::Constant(int_lit);
-    let exp_tree = ASTTree::Return(Box::new(int_const));
-    return exp_tree;
+    return ASTTree::Return(Box::new(exp));
+}
+
+/*
+    Grammar:
+    <exp> ::= <int> | <unary_op> <exp>
+*/
+pub fn parse_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
+    match tokens.pop_front() {
+        Some(Token::TIntLit(x)) => {
+            return ASTTree::Constant(x);
+        },
+        Some(Token::TBitComp) => {
+            let exp = parse_exp(tokens);
+            return ASTTree::UnaryOp("~".to_owned(), Box::new(exp));
+        },
+        Some(Token::TNeg) => {
+            let exp = parse_exp(tokens);
+            return ASTTree::UnaryOp("-".to_owned(), Box::new(exp));
+        },
+        Some(Token::TLNeg) => {
+            let exp = parse_exp(tokens);
+            return ASTTree::UnaryOp("!".to_owned(), Box::new(exp));
+        },
+        _ => panic!("Parse exp int fail"),
+    };
 }
 
 /*

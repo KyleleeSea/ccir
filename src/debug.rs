@@ -50,6 +50,9 @@ pub fn print_tkn_vec(tkn_stack: &mut Vec<Token>) {
 
 pub fn print_ast(tree: ASTTree) {
     match tree {
+        ASTTree::Program(child) => {
+            print_ast(*child);
+        },
         ASTTree::Function(func_id, func_type, child) => {
             print!("function: {} ", func_id);
             if func_type == Token::TInt {

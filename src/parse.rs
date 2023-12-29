@@ -75,10 +75,15 @@ pub fn parse_function(tokens: &mut VecDeque<Token>) -> ASTTree {
     return func_node;
 }
 
+pub fn parse_program(tokens: &mut VecDeque<Token>) -> ASTTree {
+    let func_node = Box::new(parse_function(tokens));
+    return ASTTree::Program(func_node);
+}
+
 pub fn parser(tkn_stack: Vec<Token>) {
     // For now, expecting only function declarations
     // and return statements
     let mut tokens: VecDeque<Token> = VecDeque::from_iter(tkn_stack);
-    let tree = parse_function(&mut tokens);
+    let tree = parse_program(&mut tokens);
     print_ast(tree);
 }

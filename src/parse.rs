@@ -7,6 +7,10 @@ use super::types::ASTTree;
 
 use super::debug::print_ast;
 
+/*
+    Pops ";", raises fail if it doesn't exist or 
+    there's mismatch
+*/
 pub fn chk_semi(tokens: &mut VecDeque<Token>) {
     if tokens.pop_front() != Some(Token::TSemicolon) {
         panic!("Parse semicolon fail");
@@ -37,17 +41,9 @@ pub fn parse_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
         Some(Token::TIntLit(x)) => {
             return ASTTree::Constant(x);
         },
-        Some(Token::TBitComp) => {
+        Some(tkn) => {
             let exp = parse_exp(tokens);
-            return ASTTree::UnaryOp("~".to_owned(), Box::new(exp));
-        },
-        Some(Token::TNeg) => {
-            let exp = parse_exp(tokens);
-            return ASTTree::UnaryOp("-".to_owned(), Box::new(exp));
-        },
-        Some(Token::TLNeg) => {
-            let exp = parse_exp(tokens);
-            return ASTTree::UnaryOp("!".to_owned(), Box::new(exp));
+            return ASTTree::UnaryOp(tkn, Box::new(exp));
         },
         _ => panic!("Parse exp int fail"),
     };

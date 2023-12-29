@@ -57,5 +57,5 @@ pub enum ASTTree {
     Constant(i64),
     Return(Box<ASTTree>),
     Statement(Box<ASTTree>),
-    UnaryOp(String, Box<ASTTree>),
+    UnaryOp(Token, Box<ASTTree>),
 }

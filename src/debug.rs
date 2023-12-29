@@ -1,65 +1,66 @@
-use super::types;
+use super::types::Token;
+use super::types::ASTTree;
 
-pub fn print_tkn_vec(tkn_stack: &mut Vec<types::Token>) {
+pub fn print_tkn_vec(tkn_stack: &mut Vec<Token>) {
     for el in tkn_stack {
         match el {
-            types::Token::TOpenBrace => print!("open brace "),
-            types::Token::TCloseBrace => print!("close brace "),
-            types::Token::TOpenParen => print!("( "),
-            types::Token::TCloseParen => print!(") "),
-            types::Token::TSemicolon => print!("; "),
-            types::Token::TInt => print!("int "),
-            types::Token::TReturn => print!("return "),
-            types::Token::TIdentifier(inner_str) => print!("{} ", inner_str),
-            types::Token::TIntLit(inner_num) => print!("{} ", inner_num),
-            types::Token::TNeg => print!("- "),
-            types::Token::TBitComp => print!("~ "),
-            types::Token::TLNeg => print!("! "),
-            types::Token::TAdd => print!("+ "),
-            types::Token::TMultiply => print!("* "),
-            types::Token::TDivide => print!("/ "),
-            types::Token::TBitAnd => print!("& "),
-            types::Token::TBitOr => print!("| "),
-            types::Token::TXor => print!("^ "),
-            types::Token::TLShift => print!("<< "),
-            types::Token::TRShift => print!(">> "),
-            types::Token::TAnd => print!("&& "),
-            types::Token::TOr => print!("|| "),
-            types::Token::TAssign => print!("= "),
-            types::Token::TEq => print!("== "),
-            types::Token::TNeq => print!("!= "),
-            types::Token::TLess => print!("< "),
-            types::Token::TLeq => print!("<= "),
-            types::Token::TGreater => print!("> "),
-            types::Token::TGeq => print!(">= "),
-            types::Token::TMod => print!("% "),
-            types::Token::TColon => print!(": "),
-            types::Token::TIf => print!("if "),
-            types::Token::TElse => print!("else "),
-            types::Token::TQuestion => print!("? "),
-            types::Token::TFor => print!("for "),
-            types::Token::TWhile => print!("while "),
-            types::Token::TDo => print!("do "),
-            types::Token::TBreak => print!("break "),
-            types::Token::TContinue => print!("continue "),
-            types::Token::TComma => print!(", "),
+            Token::TOpenBrace => print!("open brace "),
+            Token::TCloseBrace => print!("close brace "),
+            Token::TOpenParen => print!("( "),
+            Token::TCloseParen => print!(") "),
+            Token::TSemicolon => print!("; "),
+            Token::TInt => print!("int "),
+            Token::TReturn => print!("return "),
+            Token::TIdentifier(inner_str) => print!("{} ", inner_str),
+            Token::TIntLit(inner_num) => print!("{} ", inner_num),
+            Token::TNeg => print!("- "),
+            Token::TBitComp => print!("~ "),
+            Token::TLNeg => print!("! "),
+            Token::TAdd => print!("+ "),
+            Token::TMultiply => print!("* "),
+            Token::TDivide => print!("/ "),
+            Token::TBitAnd => print!("& "),
+            Token::TBitOr => print!("| "),
+            Token::TXor => print!("^ "),
+            Token::TLShift => print!("<< "),
+            Token::TRShift => print!(">> "),
+            Token::TAnd => print!("&& "),
+            Token::TOr => print!("|| "),
+            Token::TAssign => print!("= "),
+            Token::TEq => print!("== "),
+            Token::TNeq => print!("!= "),
+            Token::TLess => print!("< "),
+            Token::TLeq => print!("<= "),
+            Token::TGreater => print!("> "),
+            Token::TGeq => print!(">= "),
+            Token::TMod => print!("% "),
+            Token::TColon => print!(": "),
+            Token::TIf => print!("if "),
+            Token::TElse => print!("else "),
+            Token::TQuestion => print!("? "),
+            Token::TFor => print!("for "),
+            Token::TWhile => print!("while "),
+            Token::TDo => print!("do "),
+            Token::TBreak => print!("break "),
+            Token::TContinue => print!("continue "),
+            Token::TComma => print!(", "),
         }
     }
 }
 
-pub fn print_ast(tree: types::ASTTree) {
+pub fn print_ast(tree: ASTTree) {
     match tree {
-        types::ASTTree::Function(func_id, func_type, child) => {
+        ASTTree::Function(func_id, func_type, child) => {
             print!("function: {} ", func_id);
-            if func_type == types::Token::TInt {
+            if func_type == Token::TInt {
                 println!("int ");
             }
             print_ast(*child);
         },
-        types::ASTTree::Constant(cnst) => {
+        ASTTree::Constant(cnst) => {
             println!("const: {} ", cnst)
         },
-        types::ASTTree::Return(child) => {
+        ASTTree::Return(child) => {
             println!("return:");
             print_ast(*child);
         },

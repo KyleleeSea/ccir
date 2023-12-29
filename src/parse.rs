@@ -25,7 +25,7 @@ pub fn parse_statement(tokens: &mut VecDeque<Token>) -> ASTTree {
     let exp = parse_exp(tokens);
     chk_semi(tokens);
 
-    return ASTTree::Return(Box::new(exp));
+    return ASTTree::Statement(Box::new(ASTTree::Return(Box::new(exp))));
 }
 
 /*
@@ -94,7 +94,7 @@ pub fn parse_function(tokens: &mut VecDeque<Token>) -> ASTTree {
         panic!("Parse function bracket fail");
     }
 
-    return func_node;
+    return ASTTree::Program(Box::new(func_node));
 }
 
 pub fn parser(tkn_stack: Vec<Token>) {

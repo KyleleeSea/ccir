@@ -67,5 +67,12 @@ pub fn print_ast(tree: ASTTree) {
             println!("return:");
             print_ast(*child);
         },
+        ASTTree::Statement(child) => {
+            print_ast(*child);
+        },
+        ASTTree::UnaryOp(tkn, child) => {
+            // add code for printing tkn
+            print_ast(*child);
+        }
     }
 }

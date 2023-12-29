@@ -51,7 +51,7 @@ pub fn parse_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
 
 /*
     Grammar:
-    <function> ::= "int" <id> "(" ")" "{" <exp> "}"
+    <function> ::= "int" <id> "(" ")" "{" <statement> "}"
 */
 pub fn parse_function(tokens: &mut VecDeque<Token>) -> ASTTree {
     let func_type;
@@ -76,18 +76,18 @@ pub fn parse_function(tokens: &mut VecDeque<Token>) -> ASTTree {
 
     // Open bracket
     if tokens.pop_front() != Some(Token::TOpenBrace) {
-        panic!("Parse function bracket fail");
+        panic!("Parse function (open) bracket fail");
     }
 
     // Parse expression, assuming we only return
     // for now
-    let ret_node = parse_exp(tokens);
+    let ret_node = parse_statement(tokens);
     let func_node = ASTTree::Function(func_id, func_type, 
         Box::new(ret_node));
 
     // Close bracket
     if tokens.pop_front() != Some(Token::TCloseBrace) {
-        panic!("Parse function bracket fail");
+        panic!("Parse function (close) bracket fail");
     }
 
     return func_node;
@@ -98,10 +98,11 @@ pub fn parse_program(tokens: &mut VecDeque<Token>) -> ASTTree {
     return ASTTree::Program(func_node);
 }
 
-pub fn parser(tkn_stack: Vec<Token>) {
+pub fn parser(tkn_stack: Vec<Token>) -> ASTTree {
     // For now, expecting only function declarations
     // and return statements
     let mut tokens: VecDeque<Token> = VecDeque::from_iter(tkn_stack);
     let tree = parse_program(&mut tokens);
-    print_ast(tree);
+
+    return tree;
 }

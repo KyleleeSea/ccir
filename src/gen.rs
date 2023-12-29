@@ -2,8 +2,14 @@ use std::fs::OpenOptions;
 use std::fs::File;
 use std::io::Write;
 use super::types::ASTTree;
+use std::fs;
+use std::path::Path;
 
 pub fn generate(tree: ASTTree) {
+    if Path::new("assembly.s").exists() {
+      fs::remove_file("assembly.s").unwrap();
+    }
+
     let file = OpenOptions::new()
         .create(true)
         .append(true)
@@ -14,17 +20,13 @@ pub fn generate(tree: ASTTree) {
         ASTTree::Program(child) => process_function(*child, file),
         _ => invalid_match("generate"),
     }
-
-    // run commands here
     
 }
 
 fn process_function(tree: ASTTree, mut file: File) {
     match tree {
         ASTTree::Function(id, _type, child) => {
-            // let header = format!(".globl _{}\n", id).as_str();
             write_wrapper(write!(file, ".globl _{}\n", id));
-            // let name = format!("_{}:\n", id).as_str();
             write_wrapper(write!(file, "_{}:\n", id));
             process_statement(*child, file);
         },
@@ -45,7 +47,6 @@ fn process_statement(tree: ASTTree, file: File) {
 fn process_return(tree: ASTTree, mut file: File) {
     match tree {
         ASTTree::Constant(x) => {
-            // let move_instr = format!("movl  ${}, %eax\n", x).as_str();
             write_wrapper(write!(file, "movl ${}, %eax\n", x));
             write_wrapper(write!(file, "{}", "ret\n"));
         },

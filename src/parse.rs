@@ -90,7 +90,7 @@ pub fn parse_function(tokens: &mut VecDeque<Token>) -> ASTTree {
         panic!("Parse function bracket fail");
     }
 
-    return ASTTree::Program(Box::new(func_node));
+    return func_node;
 }
 
 pub fn parse_program(tokens: &mut VecDeque<Token>) -> ASTTree {

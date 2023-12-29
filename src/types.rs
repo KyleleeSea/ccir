@@ -1,3 +1,4 @@
+#[derive(PartialEq)]
 pub enum Token {
     TOpenBrace,
     TCloseBrace,
@@ -49,4 +50,9 @@ pub enum LexerFlag {
     Eq,
     Less,
     Greater
+}
+pub enum ASTTree {
+    Function(String, Token, Box<ASTTree>),
+    Constant(i64),
+    Return(Box<ASTTree>),
 }

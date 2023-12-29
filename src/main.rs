@@ -5,7 +5,7 @@ mod gen;
 mod debug;
 
 fn main() {
-    let tkn_stack = lex::lexer();
-    debug::print_tkn_vec(tkn_stack);
-
+    let mut tkn_stack = lex::lexer();
+    // debug::print_tkn_vec(&mut tkn_stack);
+    parse::parser(tkn_stack);
 }

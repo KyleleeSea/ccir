@@ -1,7 +1,7 @@
 use super::types;
 
-pub fn print_tkn_vec(tkn_stack: Vec<types::Token>) {
-    for el in &tkn_stack {
+pub fn print_tkn_vec(tkn_stack: &mut Vec<types::Token>) {
+    for el in tkn_stack {
         match el {
             types::Token::TOpenBrace => print!("open brace "),
             types::Token::TCloseBrace => print!("close brace "),
@@ -44,5 +44,24 @@ pub fn print_tkn_vec(tkn_stack: Vec<types::Token>) {
             types::Token::TContinue => print!("continue "),
             types::Token::TComma => print!(", "),
         }
+    }
+}
+
+pub fn print_ast(tree: types::ASTTree) {
+    match tree {
+        types::ASTTree::Function(func_id, func_type, child) => {
+            print!("function: {} ", func_id);
+            if func_type == types::Token::TInt {
+                println!("int ");
+            }
+            print_ast(*child);
+        },
+        types::ASTTree::Constant(cnst) => {
+            println!("const: {} ", cnst)
+        },
+        types::ASTTree::Return(child) => {
+            println!("return:");
+            print_ast(*child);
+        },
     }
 }

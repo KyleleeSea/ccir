@@ -1,10 +1,11 @@
 use std::env;
 use std::fs;
 use std::vec::Vec;
-use super::types;
+use super::types::Token;
+use super::types::LexerFlag;
 
 // Parses a file's text and converts characters to stack of appropriate tokens 
-pub fn lexer() -> Vec<types::Token> {
+pub fn lexer() -> Vec<Token> {
     // Read command line file
     let args: Vec<String> = env::args().collect();
 
@@ -18,7 +19,7 @@ pub fn lexer() -> Vec<types::Token> {
 
     let mut intlit_acc: Option<String> = None;
     let mut id_acc: Option<String> = None;
-    let mut flag: types::LexerFlag = types::LexerFlag::NoFlag;
+    let mut flag: LexerFlag = LexerFlag::NoFlag;
 
     let chars = contents.chars();
     let mut tkn_stack = Vec::new();
@@ -35,72 +36,72 @@ pub fn lexer() -> Vec<types::Token> {
     for c in chars {
         // Handle compounds like &&, ||, >>, etc
         match flag {
-            types::LexerFlag::NoFlag => (),
-            types::LexerFlag::Amp => if c == '&' {
-                tkn_stack.push(types::Token::TAnd);
-                flag = types::LexerFlag::NoFlag;
+            LexerFlag::NoFlag => (),
+            LexerFlag::Amp => if c == '&' {
+                tkn_stack.push(Token::TAnd);
+                flag = LexerFlag::NoFlag;
                 continue;
             }
             else {
-                tkn_stack.push(types::Token::TBitAnd);
+                tkn_stack.push(Token::TBitAnd);
             },
-            types::LexerFlag::Pipe => if c == '|' {
-                tkn_stack.push(types::Token::TOr);
-                flag = types::LexerFlag::NoFlag;
+            LexerFlag::Pipe => if c == '|' {
+                tkn_stack.push(Token::TOr);
+                flag = LexerFlag::NoFlag;
                 continue;
             }
             else {
-                tkn_stack.push(types::Token::TBitOr)
+                tkn_stack.push(Token::TBitOr)
             },
-            types::LexerFlag::Excl => if c == '=' {
-                tkn_stack.push(types::Token::TNeq);
-                flag = types::LexerFlag::NoFlag;
+            LexerFlag::Excl => if c == '=' {
+                tkn_stack.push(Token::TNeq);
+                flag = LexerFlag::NoFlag;
                 continue;
             }
             else {
-                tkn_stack.push(types::Token::TLNeg);
+                tkn_stack.push(Token::TLNeg);
             },
-            types::LexerFlag::Eq => if c == '=' {
-                tkn_stack.push(types::Token::TEq);
-                flag = types::LexerFlag::NoFlag;
+            LexerFlag::Eq => if c == '=' {
+                tkn_stack.push(Token::TEq);
+                flag = LexerFlag::NoFlag;
                 continue;
             }
             else {
-                tkn_stack.push(types::Token::TAssign);
+                tkn_stack.push(Token::TAssign);
             },
-            types::LexerFlag::Less => if c == '<' {
-                tkn_stack.push(types::Token::TLShift);
-                flag = types::LexerFlag::NoFlag;
+            LexerFlag::Less => if c == '<' {
+                tkn_stack.push(Token::TLShift);
+                flag = LexerFlag::NoFlag;
                 continue;
             }
             else {
                 if c == '=' {
-                    tkn_stack.push(types::Token::TLeq);
-                    flag = types::LexerFlag::NoFlag;
+                    tkn_stack.push(Token::TLeq);
+                    flag = LexerFlag::NoFlag;
                     continue;
                 }
                 else {
-                    tkn_stack.push(types::Token::TLess);
+                    tkn_stack.push(Token::TLess);
                 }
             },
-            types::LexerFlag::Greater => if c == '>' {
-                tkn_stack.push(types::Token::TRShift);
-                flag = types::LexerFlag::NoFlag;
+            LexerFlag::Greater => if c == '>' {
+                tkn_stack.push(Token::TRShift);
+                flag = LexerFlag::NoFlag;
                 continue;
             }
             else {
                 if c == '=' {
-                    tkn_stack.push(types::Token::TGeq);
-                    flag = types::LexerFlag::NoFlag;
+                    tkn_stack.push(Token::TGeq);
+                    flag = LexerFlag::NoFlag;
                     continue;
                 }
                 else {
-                    tkn_stack.push(types::Token::TGreater);
+                    tkn_stack.push(Token::TGreater);
                 }
             },
         }
 
-        flag = types::LexerFlag::NoFlag;
+        flag = LexerFlag::NoFlag;
 
         // If intLit accumulated and we encounter non intLit character, push
         match intlit_acc {
@@ -132,27 +133,27 @@ pub fn lexer() -> Vec<types::Token> {
         }
 
         match c {
-            '{' => tkn_stack.push(types::Token::TOpenBrace),
-            '}' => tkn_stack.push(types::Token::TCloseBrace),
-            '(' => tkn_stack.push(types::Token::TOpenParen),
-            ')' => tkn_stack.push(types::Token::TCloseParen),
-            ';' => tkn_stack.push(types::Token::TSemicolon),
-            '-' => tkn_stack.push(types::Token::TNeg),
-            '~' => tkn_stack.push(types::Token::TBitComp),
-            '!' => flag = types::LexerFlag::Excl,
-            '+' => tkn_stack.push(types::Token::TAdd),
-            '*' => tkn_stack.push(types::Token::TMultiply),
-            '/' => tkn_stack.push(types::Token::TDivide),
-            '%' => tkn_stack.push(types::Token::TMod),
-            '&' => flag = types::LexerFlag::Amp,
-            '|' => flag = types::LexerFlag::Pipe,
-            '=' => flag = types::LexerFlag::Eq,
-            '<' => flag = types::LexerFlag::Less,
-            '>' => flag = types::LexerFlag::Greater,
-            '^' => tkn_stack.push(types::Token::TXor),
-            ':' => tkn_stack.push(types::Token::TColon),
-            '?' => tkn_stack.push(types::Token::TQuestion),
-            ',' => tkn_stack.push(types::Token::TComma),
+            '{' => tkn_stack.push(Token::TOpenBrace),
+            '}' => tkn_stack.push(Token::TCloseBrace),
+            '(' => tkn_stack.push(Token::TOpenParen),
+            ')' => tkn_stack.push(Token::TCloseParen),
+            ';' => tkn_stack.push(Token::TSemicolon),
+            '-' => tkn_stack.push(Token::TNeg),
+            '~' => tkn_stack.push(Token::TBitComp),
+            '!' => flag = LexerFlag::Excl,
+            '+' => tkn_stack.push(Token::TAdd),
+            '*' => tkn_stack.push(Token::TMultiply),
+            '/' => tkn_stack.push(Token::TDivide),
+            '%' => tkn_stack.push(Token::TMod),
+            '&' => flag = LexerFlag::Amp,
+            '|' => flag = LexerFlag::Pipe,
+            '=' => flag = LexerFlag::Eq,
+            '<' => flag = LexerFlag::Less,
+            '>' => flag = LexerFlag::Greater,
+            '^' => tkn_stack.push(Token::TXor),
+            ':' => tkn_stack.push(Token::TColon),
+            '?' => tkn_stack.push(Token::TQuestion),
+            ',' => tkn_stack.push(Token::TComma),
             '0' ..= '9' => match intlit_acc {
                 // begin accumulating an intlit
                 None => 
@@ -180,29 +181,29 @@ pub fn lexer() -> Vec<types::Token> {
 return tkn_stack;
 }
 
-fn identifier_to_token(id: Option<String>) -> types::Token {
+fn identifier_to_token(id: Option<String>) -> Token {
     match id {
         None => panic!("called identifierToToken on None, shouldn't happen"),
         Some (inner) => match inner.as_str()
             {
-                "return" => types::Token::TReturn,
-                "int" => types::Token::TInt,
-                "if" => types::Token::TIf,
-                "else" => types::Token::TElse,
-                "for" => types::Token::TFor,
-                "while" => types::Token::TWhile,
-                "do" => types::Token::TDo,
-                "break" => types::Token::TBreak,
-                "continue" => types::Token::TContinue,
-                _ => types::Token::TIdentifier(inner),
+                "return" => Token::TReturn,
+                "int" => Token::TInt,
+                "if" => Token::TIf,
+                "else" => Token::TElse,
+                "for" => Token::TFor,
+                "while" => Token::TWhile,
+                "do" => Token::TDo,
+                "break" => Token::TBreak,
+                "continue" => Token::TContinue,
+                _ => Token::TIdentifier(inner),
             }
     }
 }
 
-fn intLit_to_token(int_lit: Option<String>) -> types::Token {
+fn intLit_to_token(int_lit: Option<String>) -> Token {
     match int_lit {
         None => panic!("called intLitToToken on None, shouldn't happen"), 
         // Cast to int
-        Some (inner) => types::Token::TIntLit(inner.parse::<i64>().unwrap()),
+        Some (inner) => Token::TIntLit(inner.parse::<i64>().unwrap()),
     }
 }

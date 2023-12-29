@@ -51,6 +51,7 @@ pub enum LexerFlag {
     Less,
     Greater
 }
+
 pub enum ASTTree {
     Program(Box<ASTTree>),
     Function(String, Token, Box<ASTTree>),

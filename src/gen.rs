@@ -4,6 +4,7 @@ use std::io::Write;
 use super::types::ASTTree;
 use std::fs;
 use std::path::Path;
+use std::process::Command;
 
 pub fn generate(tree: ASTTree) {
     if Path::new("assembly.s").exists() {
@@ -20,7 +21,13 @@ pub fn generate(tree: ASTTree) {
         ASTTree::Program(child) => process_function(*child, file),
         _ => invalid_match("generate"),
     }
-    
+
+    Command::new("gcc")
+    .arg("assembly.s")
+    .arg("-o")
+    .arg("out")
+    .output()
+    .expect("Failed to execute command");
 }
 
 fn process_function(tree: ASTTree, mut file: File) {

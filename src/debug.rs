@@ -71,6 +71,7 @@ pub fn print_ast(tree: ASTTree) {
             print_ast(*child);
         },
         ASTTree::UnaryOp(tkn, child) => {
+            print!("(");
             match tkn {
                 Token::TNeg => print!("op - "),
                 Token::TBitComp => print!("op ~ "),
@@ -78,8 +79,10 @@ pub fn print_ast(tree: ASTTree) {
                 _ => print!("unidentified unary op among us"),
             }
             print_ast(*child);
+            print!(")\n");
         },
         ASTTree::BinaryOp(left, tkn, right) => {
+            print!("(");
             print_ast(*left);
             match tkn {
                 Token::TNeg => print!("binary op - "),
@@ -89,6 +92,7 @@ pub fn print_ast(tree: ASTTree) {
                 _ => print!("unidentified binary op among us"),
             }
             print_ast(*right);
+            print!(")\n");
         },  
     }
 }

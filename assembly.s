@@ -1,4 +1,4 @@
 .globl _main
 _main:
-movl $100, %eax
+movl $0, %eax
 ret

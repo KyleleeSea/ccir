@@ -59,4 +59,5 @@ pub enum ASTTree {
     Return(Box<ASTTree>),
     Statement(Box<ASTTree>),
     UnaryOp(Token, Box<ASTTree>),
+    BinaryOp(Box<ASTTree>, Token, Box<ASTTree>),
 }

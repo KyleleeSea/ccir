@@ -17,6 +17,13 @@ pub fn chk_semi(tokens: &mut VecDeque<Token>) {
     }
 }
 
+fn is_un_op(tkn: &Token) -> bool {
+    match tkn {
+        Token::TNeg | Token::TBitComp | Token::TLNeg => true,
+        _ => false,
+    }
+}
+
 /*
     Grammar:
     <statement> ::= "return" <exp> ";"
@@ -34,19 +41,80 @@ pub fn parse_statement(tokens: &mut VecDeque<Token>) -> ASTTree {
 
 /*
     Grammar:
-    <exp> ::= <int> | <unary_op> <exp>
+    <exp> ::= <term> { ("+" | "-") <term> }
 */
 pub fn parse_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
+    let mut term = parse_term(tokens);
+
+    let mut next = tokens.get(0);
+    let mut op;
+    let mut next_term;
+
+    while next == Some(&Token::TAdd) || next == Some(&Token::TNeg) {
+        op = match tokens.pop_front() {
+            Some(inner) => inner,
+            None => panic!("failed parse_exp")
+        };
+        next_term = parse_term(tokens);
+        term = ASTTree::BinaryOp(Box::new(term), op, Box::new(next_term));
+        next = tokens.get(0);
+    }
+
+    return term;
+}
+
+/*
+    Grammar:
+    <term> ::= <factor> { ("*" | "/") <factor> }
+*/
+pub fn parse_term(tokens: &mut VecDeque<Token>) -> ASTTree {
+    let mut factor = parse_factor(tokens);
+
+    let mut next = tokens.get(0);
+    let mut op;
+    let mut next_factor;
+
+    while next == Some(&Token::TMultiply) || next == Some(&Token::TDivide) {
+        op = match tokens.pop_front() {
+            Some(inner) => inner,
+            None => panic!("failed parse_term")
+        };
+        next_factor = parse_factor(tokens);
+        factor = ASTTree::BinaryOp(Box::new(factor), op, Box::new(next_factor));
+        next = tokens.get(0);
+    }
+
+    return factor;
+}
+
+/*
+    Grammar:
+    <factor> ::= "(" <exp> ")" | <unary_op> <factor> | <int>
+*/
+pub fn parse_factor(tokens: &mut VecDeque<Token>) -> ASTTree {
     match tokens.pop_front() {
+        // <factor> ::= "(" <exp> ")"
+        Some(Token::TOpenParen) => {
+            let exp = parse_exp(tokens);
+            if tokens.pop_front() != Some(Token::TCloseParen) {
+                panic!("Parse close paren fail");
+            }
+            return exp;
+        },
+        // <factor> ::= <int>
         Some(Token::TIntLit(x)) => {
             return ASTTree::Constant(x);
         },
-        Some(tkn) => {
-            let exp = parse_exp(tokens);
-            return ASTTree::UnaryOp(tkn, Box::new(exp));
-        },
-        _ => panic!("Parse exp int fail"),
-    };
+        Some(inner) => 
+            // <factor> ::= <unary_op> <factor>
+            if is_un_op(&inner) {
+                let factor = parse_factor(tokens);
+                return ASTTree::UnaryOp(inner, Box::new(factor));
+            } else {
+                panic!("Parse factor fail");
+            },
+        _ => panic!("Parse factor fail"),
+    }
 }
 
 /*

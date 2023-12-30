@@ -1,12 +1,11 @@
 .globl _main
 _main:
-movl $1, %eax
+movl $4, %eax
 push %rax
 movl $2, %eax
 pop %rcx
-subl %rax, %rcx
-push %rax
-movl $3, %eax
-pop %rcx
-subl %rax, %rcx
+movl %rax, %rbx
+movl %rcx, %rax
+cdq
+idivl %rbx
 ret

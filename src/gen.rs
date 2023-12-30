@@ -74,7 +74,13 @@ fn process_expression(tree: ASTTree, mut file: &File) {
                 // subl src, dst... eax is e2 rcx is e1
                 Token::TNeg => write_wrapper(write!(file, "subl %rax, %rcx\n")),
                 Token::TDivide => {
-                    write_wrapper(write!(file, "division not yet impl\n"));
+                    // Move e2 into rbx
+                    write_wrapper(write!(file, "movl %rax, %rbx\n"));
+                    // Move e1 to rax
+                    write_wrapper(write!(file, "movl %rcx, %rax\n"));
+                    // Sign extend into rdx
+                    write_wrapper(write!(file, "cdq\n"));
+                    write_wrapper(write!(file, "idivl %rbx\n"));
                 },
                 _ => panic!("Invalid operator found in binaryOp code gen"),
             }

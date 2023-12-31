@@ -1,9 +1,12 @@
 .globl _main
 _main:
-movq $3, %rax
+movq $100, %rax
+neg %rax
 push %rax
-movq $4, %rax
+movq $5, %rax
 pop %rcx
-subq %rax, %rcx
+movq %rax, %r8
 movq %rcx, %rax
-ret
+cqo
+idivq %r8
+retq

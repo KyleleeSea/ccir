@@ -9,5 +9,5 @@ fn main() {
     // debug::print_tkn_vec(&mut tkn_stack);
     let tree = parse::parser(tkn_stack);
     // debug::print_ast(tree);
-    gen::generate(tree);
+    // gen::generate(tree);
 }

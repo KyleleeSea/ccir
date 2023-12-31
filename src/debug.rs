@@ -53,12 +53,15 @@ pub fn print_ast(tree: ASTTree) {
         ASTTree::Program(child) => {
             print_ast(*child);
         },
-        ASTTree::Function(func_id, func_type, child) => {
+        ASTTree::Function(func_id, func_type, children) => {
             print!("function: {} ", func_id);
             if func_type == Token::TInt {
                 println!("int ");
             }
-            print_ast(*child);
+
+            for child in children {
+                print_ast(*child);
+            }
         },
         ASTTree::Constant(cnst) => {
             println!("const: {} ", cnst)
@@ -94,5 +97,25 @@ pub fn print_ast(tree: ASTTree) {
             print_ast(*right);
             print!(")\n");
         },  
+        ASTTree::Declare(id, exp) => {
+            print!("dec {} ", id);
+            match exp {
+                Some(child) => {
+                        print!("= ");
+                        print_ast(*child);
+                    },
+                None => (),
+            }
+        },
+        ASTTree::Var(id) => print!("var {} ", id),
+        ASTTree::Exp(child) => {
+            print!("exp ");
+            print_ast(*child);
+
+        },
+        ASTTree::Assign(id, child) => {
+            print!("assign {}", id);
+            print_ast(*child);
+        }
     }
 }

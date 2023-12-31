@@ -1,3 +1,6 @@
+use std::vec::Vec;
+use std::option::Option;
+
 #[derive(PartialEq)]
 pub enum Token {
     TOpenBrace,
@@ -54,10 +57,14 @@ pub enum LexerFlag {
 
 pub enum ASTTree {
     Program(Box<ASTTree>),
-    Function(String, Token, Box<ASTTree>),
+    Function(String, Token, Vec<Box<ASTTree>>),
     Constant(i64),
     Return(Box<ASTTree>),
     Statement(Box<ASTTree>),
     UnaryOp(Token, Box<ASTTree>),
     BinaryOp(Box<ASTTree>, Token, Box<ASTTree>),
+    Declare(String, Option<Box<ASTTree>>),
+    Var(String),
+    Exp(Box<ASTTree>),
+    Assign(String, Box<ASTTree>)
 }

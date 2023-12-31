@@ -55,11 +55,20 @@ fn process_statement(tree: ASTTree, file: File) {
 fn process_expression(tree: ASTTree, mut file: &File) {
     match tree {
         ASTTree::Constant(x) => {
-            write_wrapper(write!(file, "movl ${}, %eax\n", x));
+            write_wrapper(write!(file, "movq ${}, %rax\n", x));
         },
         ASTTree::UnaryOp(op, child) => {
-            write_wrapper(write!(file, "{}\n", "unary op code, andrew do things
-            here"));
+            process_expression(*child, &file);
+            match op {
+                Token::TNeg => write_wrapper(write!(file, "neg %rax")),
+                Token::TBitComp => write_wrapper(write!(file, "not %rax")),
+                Token::TLNeg => {
+                    write_wrapper(write!(file, "cmpq $0, %rax"));
+                    write_wrapper(write!(file, "movq $0, %rax"));
+                    write_wrapper(write!(file, "sete %al"));
+                },
+                _ => panic!("Invalid operator found in unaryOp code gen"),
+            }
         },
         ASTTree::BinaryOp(left, op, right) => {
             process_expression(*left, &file);
@@ -68,19 +77,24 @@ fn process_expression(tree: ASTTree, mut file: &File) {
             // e1 in rcx, e2 in rax
             write_wrapper(write!(file, "pop %rcx\n"));
             match op {
-                Token::TAdd => write_wrapper(write!(file, "addl %rcx, %rax\n")),
+                Token::TAdd => write_wrapper(write!(file, "addq %rcx, %rax\n")),
                 Token::TMultiply =>
                     write_wrapper(write!(file, "imul %rcx, %rax\n")),
-                // subl src, dst... eax is e2 rcx is e1
-                Token::TNeg => write_wrapper(write!(file, "subl %rax, %rcx\n")),
+                // subq src, dst... eax is e2 rcx is e1
+                Token::TNeg => {
+                    write_wrapper(write!(file, "subq %rax, %rcx\n"));
+                    // here dst is %rcx so we move to %rax
+                    write_wrapper(write!(file, "movq %rcx, %rax\n"));
+                },
                 Token::TDivide => {
                     // Move e2 into rbx
-                    write_wrapper(write!(file, "movl %rax, %rbx\n"));
+                    write_wrapper(write!(file, "movq %rax, %rbx\n"));
                     // Move e1 to rax
-                    write_wrapper(write!(file, "movl %rcx, %rax\n"));
+                    write_wrapper(write!(file, "movq %rcx, %rax\n"));
                     // Sign extend into rdx
                     write_wrapper(write!(file, "cdq\n"));
-                    write_wrapper(write!(file, "idivl %rbx\n"));
+                    write_wrapper(write!(file, "idivq %rbx\n"));
+                    write_wrapper(write!(file, "movq %rbx, %rax\n"));
                 },
                 _ => panic!("Invalid operator found in binaryOp code gen"),
             }

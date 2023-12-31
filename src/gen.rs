@@ -4,10 +4,13 @@ use std::io::Write;
 use super::types::ASTTree;
 use super::types::Token;
 use std::fs;
+use std::env;
 use std::path::Path;
 use std::process::Command;
 
 pub fn generate(tree: ASTTree) {
+    let args: Vec<String> = env::args().collect();
+
     if Path::new("assembly.s").exists() {
       fs::remove_file("assembly.s").unwrap();
     }
@@ -26,7 +29,7 @@ pub fn generate(tree: ASTTree) {
     Command::new("gcc")
     .arg("assembly.s")
     .arg("-o")
-    .arg("out")
+    .arg(&args[2])
     .output()
     .expect("Failed to execute command");
 }
@@ -60,12 +63,12 @@ fn process_expression(tree: ASTTree, mut file: &File) {
         ASTTree::UnaryOp(op, child) => {
             process_expression(*child, &file);
             match op {
-                Token::TNeg => write_wrapper(write!(file, "neg %rax")),
-                Token::TBitComp => write_wrapper(write!(file, "not %rax")),
+                Token::TNeg => write_wrapper(write!(file, "neg %rax\n")),
+                Token::TBitComp => write_wrapper(write!(file, "not %rax\n")),
                 Token::TLNeg => {
-                    write_wrapper(write!(file, "cmpq $0, %rax"));
-                    write_wrapper(write!(file, "movq $0, %rax"));
-                    write_wrapper(write!(file, "sete %al"));
+                    write_wrapper(write!(file, "cmpq $0, %rax\n"));
+                    write_wrapper(write!(file, "movq $0, %rax\n"));
+                    write_wrapper(write!(file, "sete %al\n"));
                 },
                 _ => panic!("Invalid operator found in unaryOp code gen"),
             }

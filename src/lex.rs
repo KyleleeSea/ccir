@@ -13,9 +13,6 @@ pub fn lexer() -> Vec<Token> {
     
     let mut contents = fs::read_to_string(file_path)
         .expect("Should have been able to read the file");
-    
-    // Skip all whitespace and newlines by stripping immediately
-    contents.retain(|c| !c.is_whitespace());
 
     let mut intlit_acc: Option<String> = None;
     let mut id_acc: Option<String> = None;
@@ -154,6 +151,8 @@ pub fn lexer() -> Vec<Token> {
             ':' => tkn_stack.push(Token::TColon),
             '?' => tkn_stack.push(Token::TQuestion),
             ',' => tkn_stack.push(Token::TComma),
+            // skip whitespace
+            '\t' | '\n' | '\r' | ' ' => continue,
             '0' ..= '9' => match intlit_acc {
                 // begin accumulating an intlit
                 None => 

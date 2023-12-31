@@ -58,8 +58,17 @@ fn process_expression(tree: ASTTree, mut file: &File) {
             write_wrapper(write!(file, "movl ${}, %eax\n", x));
         },
         ASTTree::UnaryOp(op, child) => {
-            write_wrapper(write!(file, "{}\n", "unary op code, andrew do things
-            here"));
+            process_expression(*child, &file);
+            match op {
+                Token::TNeg => write_wrapper(write!(file, "neg %rax")),
+                Token::TBitComp => write_wrapper(write!(file, "not %rax")),
+                Token::TLNeg => {
+                    write_wrapper(write!(file, "cmpq $0, %rax"));
+                    write_wrapper(write!(file, "movq $0, %rax"));
+                    write_wrapper(write!(file, "sete %al"));
+                },
+                _ => panic!("Invalid operator found in unaryOp code gen"),
+            }
         },
         ASTTree::BinaryOp(left, op, right) => {
             process_expression(*left, &file);

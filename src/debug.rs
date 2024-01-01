@@ -60,6 +60,7 @@ pub fn print_ast(tree: ASTTree) {
             }
 
             for child in children {
+                print!("statement... ");
                 print_ast(*child);
             }
         },

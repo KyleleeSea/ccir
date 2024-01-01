@@ -62,22 +62,9 @@ fn process_function(tree: ASTTree, mut file: File) {
 
             let mut stack_ind : i32 = -8;
             let mut var_map = HashMap::new();
-            let mut no_return = true;
 
             for child in children {
-                // could have issues with passing around stack_ind and var_map
-                match *child {
-                    ASTTree::Return(_inner) => no_return = false,
-                    _ => (),
-                }
-                
                 process_statement(*child, &file, &mut stack_ind, &mut var_map);
-            }
-
-            if no_return {
-                write_epilogue(&file);
-                write_wrapper(write!(file, "movq $0, %rax\n"));
-                write_wrapper(write!(file, "{}", "retq\n"));
             }
 
 
@@ -86,7 +73,6 @@ fn process_function(tree: ASTTree, mut file: File) {
     }
 }
 
-
 // Statement can be Return, Declare, or an arbitrary expression
 fn process_statement(tree: ASTTree, file: &File, stack_ind: &mut i32, 
     var_map: &mut HashMap<String, i32>) {
@@ -94,8 +80,8 @@ fn process_statement(tree: ASTTree, file: &File, stack_ind: &mut i32,
         ASTTree::Statement(child) => match *child {
             ASTTree::Return(inner_child) => process_return(*inner_child, file,
             stack_ind, var_map),
-            ASTTree::Declare(_id, _inner_child) => process_declare(*child, file,
-            stack_ind, var_map),
+            ASTTree::Declare(ref _id, ref _inner_child) => 
+            process_declare(*child, file, stack_ind, var_map),
             _ => process_expression(*child, file, stack_ind, var_map),
         },
         _ => invalid_match("process_statement"),
@@ -186,6 +172,7 @@ fn process_expression(tree: ASTTree, mut file: &File, stack_ind: &mut i32,
 fn process_return(tree: ASTTree, mut file: &File, stack_ind: &mut i32, 
     var_map: &mut HashMap<String, i32>) {
     process_expression(tree, file, stack_ind, var_map);
+    write_epilogue(file);
     write_wrapper(write!(file, "{}", "retq\n"));
 }
 

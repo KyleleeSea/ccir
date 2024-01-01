@@ -65,6 +65,7 @@ pub enum ASTTree {
     BinaryOp(Box<ASTTree>, Token, Box<ASTTree>),
     Declare(String, Option<Box<ASTTree>>),
     Var(String),
+    // Not use ASTTree::Exp at all currently...
     Exp(Box<ASTTree>),
     Assign(String, Box<ASTTree>)
 }

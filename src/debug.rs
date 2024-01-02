@@ -93,6 +93,14 @@ pub fn print_ast(tree: ASTTree) {
                 Token::TAdd => print!("op + "),
                 Token::TMultiply => print!("op * "),
                 Token::TDivide => print!("op / "),
+                Token::TAnd => print!("&& "),
+                Token::TOr => print!("|| "),
+                Token::TEq => print!("== "),
+                Token::TNeq => print!("!= "),
+                Token::TLess => print!("< "),
+                Token::TLeq => print!("<= "),
+                Token::TGreater => print!("> "),
+                Token::TGeq => print!(">= "),
                 _ => print!("unidentified binary op among us"),
             }
             print_ast(*right);

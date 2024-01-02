@@ -144,12 +144,116 @@ pub fn parse_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
                 return parse_exp_inner(tokens);
             };
         },
-        // <exp> ::= <term> { ("+" | "-") <term> }
+        // <exp> ::= <logical-and-exp> { "||" <logical-and-exp> }
         _ => return parse_exp_inner(tokens),
     }
 }
 
+/*
+    Grammar:
+   <exp> ::= <logical-and-exp> { "||" <logical-and-exp> }
+*/
 fn parse_exp_inner(tokens: &mut VecDeque<Token>) -> ASTTree {
+    let mut logical_and_exp = parse_logical_and(tokens);
+
+    let mut next = tokens.get(0);
+    let mut op;
+    let mut next_logical_and_exp;
+
+    while next == Some(&Token::TOr) {
+        op = match tokens.pop_front() {
+            Some(inner) => inner,
+            None => panic!("failed parse_logical_and")
+        };
+        next_logical_and_exp = parse_logical_and(tokens);
+        logical_and_exp = ASTTree::BinaryOp(Box::new(logical_and_exp), 
+        op, Box::new(next_logical_and_exp));
+        next = tokens.get(0);
+    }
+
+    return logical_and_exp;
+}
+
+/*
+    Grammar:
+   <logical-and-exp> ::= <equality-exp> { "&&" <equality-exp> }
+*/
+fn parse_logical_and(tokens: &mut VecDeque<Token>) -> ASTTree {
+    let mut eq_exp = parse_eq_exp(tokens);
+
+    let mut next = tokens.get(0);
+    let mut op;
+    let mut next_eq_exp;
+
+    while next == Some(&Token::TAnd) {
+        op = match tokens.pop_front() {
+            Some(inner) => inner,
+            None => panic!("failed parse_logical_and")
+        };
+        next_eq_exp = parse_eq_exp(tokens);
+        eq_exp = ASTTree::BinaryOp(Box::new(eq_exp), op, Box::new(next_eq_exp));
+        next = tokens.get(0);
+    }
+
+    return eq_exp;
+}
+
+/*
+    Grammar:
+    <equality-exp> ::= <relational-exp> { ("!=" | "==") <relational-exp> }
+*/
+fn parse_eq_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
+    let mut rel_exp = parse_relational_exp(tokens);
+
+    let mut next = tokens.get(0);
+    let mut op;
+    let mut next_rel_exp;
+
+    while next == Some(&Token::TEq) || next == Some(&Token::TNeq) {
+        op = match tokens.pop_front() {
+            Some(inner) => inner,
+            None => panic!("failed parse_logical_and")
+        };
+        next_rel_exp = parse_relational_exp(tokens);
+        rel_exp = ASTTree::BinaryOp(Box::new(rel_exp), op, 
+            Box::new(next_rel_exp));
+        next = tokens.get(0);
+    }
+
+    return rel_exp;
+}
+
+/*
+    Grammar:
+    <relational-exp> ::= <additive-exp> { ("<" | ">" | "<=" | ">=") <additive-exp> }
+*/
+fn parse_relational_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
+    let mut additive_exp = parse_additive_exp(tokens);
+
+    let mut next = tokens.get(0);
+    let mut op;
+    let mut next_additive_exp;
+
+    while next == Some(&Token::TLess) || next == Some(&Token::TLeq)
+    || next == Some(&Token::TGreater) || next == Some(&Token::TGeq) {
+        op = match tokens.pop_front() {
+            Some(inner) => inner,
+            None => panic!("failed parse_logical_and")
+        };
+        next_additive_exp = parse_additive_exp(tokens);
+        additive_exp = ASTTree::BinaryOp(Box::new(additive_exp), op, 
+            Box::new(next_additive_exp));
+        next = tokens.get(0);
+    }
+
+    return additive_exp;
+}
+
+/*
+    Grammar:
+    <additive-exp> ::= <term> { ("+" | "-") <term> }
+*/
+fn parse_additive_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
     let mut term = parse_term(tokens);
 
     let mut next = tokens.get(0);
@@ -169,6 +273,7 @@ fn parse_exp_inner(tokens: &mut VecDeque<Token>) -> ASTTree {
 
     return term;
 }
+
 
 /*
     Grammar:

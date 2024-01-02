@@ -38,8 +38,16 @@ fn extract_id(token: Option<Token>) -> String {
 */
 pub fn parse_statement(tokens: &mut VecDeque<Token>) -> ASTTree {
     match tokens.get(0) {
-        Some(Token::TReturn) => return process_return(tokens),
-        Some(Token::TIf) => return parse_if(tokens),
+        Some(Token::TReturn) => {
+            let ret = process_return(tokens);
+            return ASTTree::Statement(Box::new(ret));
+        }
+        
+        Some(Token::TIf) => {
+            let if_block = parse_if(tokens);
+            return ASTTree::Statement(Box::new(if_block));
+
+        }
         _ => {
             let exp = parse_exp(tokens);
             chk_semi(tokens);
@@ -88,9 +96,8 @@ fn process_return(tokens: &mut VecDeque<Token>) -> ASTTree {
     tokens.pop_front();
     let exp = parse_exp(tokens);
     chk_semi(tokens);
-    let ret = Box::new(ASTTree::Return(Box::new(exp)));
 
-    return ASTTree::Statement(ret);
+    return ASTTree::Return(Box::new(exp));
 }
 
 /*
@@ -105,13 +112,10 @@ fn process_declare(tokens: &mut VecDeque<Token>) -> ASTTree {
                 Some(Token::TAssign) => {
                     let exp = parse_exp(tokens);
                     chk_semi(tokens);
-                    let decl = Box::new(ASTTree::Declare(id, 
-                    Some(Box::new(exp))));
-                    return ASTTree::Statement(decl);
+                    return ASTTree::Declare(id, Some(Box::new(exp)));
                 },
                 Some(Token::TSemicolon) => {
-                    let decl = Box::new(ASTTree::Declare(id, None));
-                    return ASTTree::Statement(decl);
+                    return ASTTree::Declare(id, None);
                 },
                 _ => panic!("failed process_declare"),
             }
@@ -231,9 +235,15 @@ pub fn parse_factor(tokens: &mut VecDeque<Token>) -> ASTTree {
 fn parse_block_item(tokens: &mut VecDeque<Token>) -> ASTTree {
     match tokens.get(0) {
         // <block-item> ::= <declaration>
-        Some(Token::TInt) => return process_declare(tokens),
+        Some(Token::TInt) => {
+            let decl = process_declare(tokens);
+            return ASTTree::BlockItem(Box::new(decl));
+        },
         // <block-item> ::= <statement>
-        _ => return parse_statement(tokens),
+        _ => {
+            let statement = parse_statement(tokens);
+            return ASTTree::BlockItem(Box::new(statement));
+        }
     }
 }
 

@@ -60,7 +60,6 @@ pub fn print_ast(tree: ASTTree) {
             }
 
             for child in children {
-                print!("statement... ");
                 print_ast(*child);
             }
         },
@@ -72,6 +71,7 @@ pub fn print_ast(tree: ASTTree) {
             print_ast(*child);
         },
         ASTTree::Statement(child) => {
+            print!("statement... ");
             print_ast(*child);
         },
         ASTTree::UnaryOp(tkn, child) => {
@@ -119,7 +119,7 @@ pub fn print_ast(tree: ASTTree) {
             print_ast(*child);
         },
         ASTTree::BlockItem(child) => {
-            print!("block item ");
+            print!("block item... ");
             print_ast(*child);
         },
         ASTTree::Conditional(cond, if_statement, else_statement) => {

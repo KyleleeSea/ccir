@@ -25,6 +25,12 @@ fn write_wrapper(res: Result<(), std::io::Error>) {
     }
 }
 
+fn get_unique_label(label_counter: &mut i32) -> String {
+    let label = format!("_label{}", label_counter);
+    *label_counter = *label_counter + 1;
+    return label;
+}
+
 fn invalid_match(name: &str) {
     panic!("code gen failed on {}", name);
 }
@@ -39,9 +45,12 @@ pub fn generate(tree: ASTTree) {
         .append(true)
         .open("assembly.s")
         .unwrap();
+
+    let mut label_counter : i32 = 0;
     
     match tree {
-        ASTTree::Program(child) => process_function(*child, file),
+        ASTTree::Program(child) => process_function(*child, file, &mut
+        label_counter),
         _ => invalid_match("generate"),
     }
 
@@ -53,7 +62,7 @@ pub fn generate(tree: ASTTree) {
     .expect("Failed to execute command");
 }
 
-fn process_function(tree: ASTTree, mut file: File) {
+fn process_function(tree: ASTTree, mut file: File, label_counter: &mut i32) {
     match tree {
         ASTTree::Function(id, _type, children) => {
             write_wrapper(write!(file, ".globl _{}\n", id));
@@ -64,7 +73,8 @@ fn process_function(tree: ASTTree, mut file: File) {
             let mut var_map = HashMap::new();
 
             for child in children {
-                process_statement(*child, &file, &mut stack_ind, &mut var_map);
+                process_block(*child, &file, &mut stack_ind, &mut var_map,
+                label_counter);
             }
 
 
@@ -73,29 +83,92 @@ fn process_function(tree: ASTTree, mut file: File) {
     }
 }
 
+fn process_block(tree: ASTTree, file: &File, stack_ind: &mut i32, 
+    var_map: &mut HashMap<String, i32>, label_counter: &mut i32) {
+
+    match tree {
+        ASTTree::BlockItem(child) => match *child {
+            ASTTree::Declare(ref _id, ref _inner_child) => 
+            process_declare(*child, file, stack_ind, var_map, label_counter),
+
+            _ => process_statement(*child, file, stack_ind, var_map, 
+            label_counter),
+        },
+        _ => invalid_match("process_block"),
+    };
+}
+
 // Statement can be Return, Declare, or an arbitrary expression
 fn process_statement(tree: ASTTree, file: &File, stack_ind: &mut i32, 
-    var_map: &mut HashMap<String, i32>) {
+    var_map: &mut HashMap<String, i32>, label_counter: &mut i32) {
     match tree {
         ASTTree::Statement(child) => match *child {
             ASTTree::Return(inner_child) => process_return(*inner_child, file,
-            stack_ind, var_map),
-            ASTTree::Declare(ref _id, ref _inner_child) => 
-            process_declare(*child, file, stack_ind, var_map),
-            _ => process_expression(*child, file, stack_ind, var_map),
+            stack_ind, var_map, label_counter),
+
+            ASTTree::Conditional(ref _condition, ref _s1, ref _s2) => 
+            process_conditional(*child, file, stack_ind, var_map, label_counter),
+
+            _ => process_expression(*child, file, stack_ind, var_map, 
+            label_counter),
         },
         _ => invalid_match("process_statement"),
     }
 }
 
+fn process_conditional(tree: ASTTree, mut file: &File, stack_ind: &mut i32, 
+    var_map: &mut HashMap<String, i32>, label_counter: &mut i32) {
+        match tree {
+            ASTTree::Conditional(condition, s1, s2_opt) => {
+                match s2_opt {
+                    None => {
+                        let label_a = get_unique_label(label_counter);
+
+                        process_expression(*condition, file, stack_ind,
+                            var_map, label_counter);
+                        write_wrapper(write!(file, "cmpq $0, %rax\n"));
+                        write!(file, "je {}\n", label_a);
+
+                        process_statement(*s1, file, stack_ind, var_map, 
+                            label_counter);
+                        
+                        write_wrapper(write!(file, "{}:\n", label_a));
+                    },
+
+                    Some(s2) => {
+                        let label_a = get_unique_label(label_counter);
+                        let label_b = get_unique_label(label_counter);
+
+                        process_expression(*condition, file, stack_ind,
+                        var_map, label_counter);
+
+                        write_wrapper(write!(file, "cmpq $0, %rax\n"));
+                        write_wrapper(write!(file, "je {}\n", label_a));
+
+                        process_statement(*s1, file, stack_ind, var_map, 
+                            label_counter);
+                        write_wrapper(write!(file, "jmp {}\n", label_b));
+
+                        write_wrapper(write!(file, "{}:\n", label_a));
+                        process_statement(*s2, file, stack_ind, var_map, 
+                            label_counter);
+                        write_wrapper(write!(file, "{}:\n", label_b));
+                    },
+                }
+            },
+            _ => invalid_match("process_conditional"),
+        }
+}
+
 fn process_expression(tree: ASTTree, mut file: &File, stack_ind: &mut i32, 
-    var_map: &mut HashMap<String, i32>) {
+    var_map: &mut HashMap<String, i32>, label_counter: &mut i32) {
     match tree {
         ASTTree::Constant(x) => {
             write_wrapper(write!(file, "movq ${}, %rax\n", x));
         },
         ASTTree::UnaryOp(op, child) => {
-            process_expression(*child, file, stack_ind, var_map);
+            process_expression(*child, file, stack_ind, var_map, 
+            label_counter);
             match op {
                 Token::TNeg => write_wrapper(write!(file, "neg %rax\n")),
                 Token::TBitComp => write_wrapper(write!(file, "not %rax\n")),
@@ -108,9 +181,9 @@ fn process_expression(tree: ASTTree, mut file: &File, stack_ind: &mut i32,
             }
         },
         ASTTree::BinaryOp(left, op, right) => {
-            process_expression(*left, file, stack_ind, var_map);
+            process_expression(*left, file, stack_ind, var_map, label_counter);
             write_wrapper(write!(file, "push %rax\n"));
-            process_expression(*right, file, stack_ind, var_map);
+            process_expression(*right, file, stack_ind, var_map, label_counter);
             // e1 in rcx, e2 in rax
             write_wrapper(write!(file, "pop %rcx\n"));
             match op {
@@ -155,7 +228,7 @@ fn process_expression(tree: ASTTree, mut file: &File, stack_ind: &mut i32,
         },
 
         ASTTree::Assign(id, child) => {
-            process_expression(*child, file, stack_ind, var_map);
+            process_expression(*child, file, stack_ind, var_map, label_counter);
             match var_map.get(&id) {
                 None => panic!("Var assignment without declaration"),
                 Some(&offset) => {
@@ -165,19 +238,19 @@ fn process_expression(tree: ASTTree, mut file: &File, stack_ind: &mut i32,
             }     
         }
 
-        _ => invalid_match("process return"),
+        _ => invalid_match("process exp"),
     }
 }
 
 fn process_return(tree: ASTTree, mut file: &File, stack_ind: &mut i32, 
-    var_map: &mut HashMap<String, i32>) {
-    process_expression(tree, file, stack_ind, var_map);
+    var_map: &mut HashMap<String, i32>, label_counter: &mut i32) {
+    process_expression(tree, file, stack_ind, var_map, label_counter);
     write_epilogue(file);
     write_wrapper(write!(file, "{}", "retq\n"));
 }
 
 fn process_declare(tree: ASTTree, mut file: &File, stack_ind: &mut i32, 
-    var_map: &mut HashMap<String, i32>) {
+    var_map: &mut HashMap<String, i32>, label_counter: &mut i32) {
     
     match tree {
         ASTTree::Declare(id, child_opt) => {
@@ -194,7 +267,8 @@ fn process_declare(tree: ASTTree, mut file: &File, stack_ind: &mut i32,
 
                 // Declared with initialization
                 Some(inner_child) => {
-                    process_expression(*inner_child, file, stack_ind, var_map);
+                    process_expression(*inner_child, file, stack_ind, var_map,
+                    label_counter);
                     write_wrapper(write!(file, "push %rax\n"));
                 },
             }

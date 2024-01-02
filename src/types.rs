@@ -67,5 +67,8 @@ pub enum ASTTree {
     Var(String),
     // Not use ASTTree::Exp at all currently...
     Exp(Box<ASTTree>),
-    Assign(String, Box<ASTTree>)
+    Assign(String, Box<ASTTree>),
+    BlockItem(Box<ASTTree>),
+    // Conditional(exp (condition), statement (if), statement option (else))
+    Conditional(Box<ASTTree>, Box<ASTTree>, Option<Box<ASTTree>>),
 }

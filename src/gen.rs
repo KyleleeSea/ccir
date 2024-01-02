@@ -183,43 +183,6 @@ fn process_expression(tree: ASTTree, mut file: &File, stack_ind: &mut i32,
         ASTTree::BinaryOp(left, op, right) => 
             process_binary_op(*left, op, *right, file, stack_ind, var_map, 
                 label_counter),
-        
-        {
-            process_expression(*left, file, stack_ind, var_map, label_counter);
-            write_wrapper(write!(file, "push %rax\n"));
-            process_expression(*right, file, stack_ind, var_map, label_counter);
-            // e1 in rcx, e2 in rax
-            write_wrapper(write!(file, "pop %rcx\n"));
-            match op {
-                Token::TAdd => write_wrapper(write!(file, "addq %rcx, %rax\n")),
-                Token::TMultiply =>
-                    write_wrapper(write!(file, "imul %rcx, %rax\n")),
-                Token::TNeg => {
-                    // want e1 in rax, e2 in ecx
-                    write_wrapper(write!(file, "movq %rcx, %rdx\n"));
-                    // e1 in rbx, e2 in rax
-                    write_wrapper(write!(file, "movq %rax, %rcx\n"));
-                    // e1 in rbx, e2 in rcx
-                    write_wrapper(write!(file, "movq %rdx, %rax\n"));
-                    // e1 in rax, e2 in rcx
-                    write_wrapper(write!(file, "subq %rcx, %rax\n"));
-                },
-                Token::TDivide => {
-                    // Move e2 into r8 
-                    write_wrapper(write!(file, "movq %rax, %r8\n"));
-                    // Move e1 to rax
-                    write_wrapper(write!(file, "movq %rcx, %rax\n"));
-                    // Sign extend into rdx
-                    write_wrapper(write!(file, "cqo\n"));
-                    // Interesting behavior... %r8 is supposed to be 
-                    // the dst, but the result always goes into %rax
-                    // when I run on lldb...
-                    write_wrapper(write!(file, "idivq %r8\n"));
-                },
-                _ => panic!("Invalid operator found in binaryOp code gen"),
-            }
-
-        },
 
         ASTTree::Var(id) => {
             match var_map.get(&id) {
@@ -250,9 +213,9 @@ fn write_arithmetic_partial(left: ASTTree, op: Token, right: ASTTree,
     mut file: &File, stack_ind: &mut i32,  var_map: &mut HashMap<String, i32>, 
     label_counter: &mut i32) {
 
-    process_expression(*left, file, stack_ind, var_map, label_counter);
+    process_expression(left, file, stack_ind, var_map, label_counter);
     write_wrapper(write!(file, "push %rax\n"));
-    process_expression(*right, file, stack_ind, var_map, label_counter);
+    process_expression(right, file, stack_ind, var_map, label_counter);
     // e1 in rcx, e2 in rax
     write_wrapper(write!(file, "pop %rcx\n"));
 
@@ -262,9 +225,9 @@ fn write_relational_partial(left: ASTTree, op: Token, right: ASTTree,
     mut file: &File, stack_ind: &mut i32,  var_map: &mut HashMap<String, i32>, 
     label_counter: &mut i32) {
 
-    process_expression(*left, file, stack_ind, var_map, label_counter);
+    process_expression(left, file, stack_ind, var_map, label_counter);
     write_wrapper(write!(file, "push %rax\n"));
-    process_expression(*right, file, stack_ind, var_map, label_counter);
+    process_expression(right, file, stack_ind, var_map, label_counter);
     // e1 in rcx, e2 in rax
     write_wrapper(write!(file, "pop %rcx\n"));
     write_wrapper(write!(file, "cmpq %rax, %rcx\n"));
@@ -285,8 +248,9 @@ fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File,
         Token::TMultiply => {
             write_arithmetic_partial(left, op, right, file, stack_ind,
                 var_map, label_counter);
-            write_wrapper(write!(file, "imul %rcx, %rax\n")),
-        }
+            write_wrapper(write!(file, "imul %rcx, %rax\n"));
+        },
+
         Token::TNeg => {
             write_arithmetic_partial(left, op, right, file, stack_ind,
                 var_map, label_counter);
@@ -314,9 +278,37 @@ fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File,
             write_wrapper(write!(file, "idivq %r8\n"));
         },
         Token::TAnd => {
-            
+            let label_a = get_unique_label(label_counter);
+            let label_b = get_unique_label(label_counter);
+            process_expression(left, file, stack_ind, var_map, label_counter);
+            write_wrapper(write!(file, "cmpq $0, %rax\n"));
+            write_wrapper(write!(file, "jne {}\n", label_a));
+            write_wrapper(write!(file, "jmp {}\n", label_b));
+
+            write_wrapper(write!(file, "{}:\n", label_a));
+            process_expression(right, file, stack_ind, var_map, label_counter);
+            write_wrapper(write!(file, "cmpq $0, %rax\n"));
+            write_wrapper(write!(file, "movq $0, %rax\n"));
+            write_wrapper(write!(file, "setne %al\n"));
+
+            write_wrapper(write!(file, "{}:\n", label_b));
         },
         Token::TOr => {
+            let label_a = get_unique_label(label_counter);
+            let label_b = get_unique_label(label_counter);
+            process_expression(left, file, stack_ind, var_map, label_counter);
+            write_wrapper(write!(file, "cmpq $0, %rax\n"));
+            write_wrapper(write!(file, "je {}\n", label_a));
+            write_wrapper(write!(file, "movq $1, %rax\n"));
+            write_wrapper(write!(file, "jmp {}\n", label_b));
+            
+            write_wrapper(write!(file, "{}:\n", label_a));
+            process_expression(right, file, stack_ind, var_map, label_counter);
+            write_wrapper(write!(file, "cmpq $0, %rax\n"));
+            write_wrapper(write!(file, "movq $0, %rax\n"));
+            write_wrapper(write!(file, "setne %al\n"));
+
+            write_wrapper(write!(file, "{}:\n", label_b));
             
         },
         Token::TEq => {

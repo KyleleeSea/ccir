@@ -33,13 +33,13 @@ fn extract_id(token: Option<Token>) -> String {
 /*
     Grammar:
     <statement> ::= "return" <exp> ";"
-                    | "int" <id> [ = <exp>] ";" 
+                    | "if" "(" <exp> ")" <statement> [ "else" <statement> ]
                     | <exp> ";"
 */
 pub fn parse_statement(tokens: &mut VecDeque<Token>) -> ASTTree {
     match tokens.get(0) {
         Some(Token::TReturn) => return process_return(tokens),
-        Some(Token::TInt) => return process_declare(tokens),
+        Some(Token::TIf) => return parse_if(tokens),
         _ => {
             let exp = parse_exp(tokens);
             chk_semi(tokens);
@@ -47,6 +47,41 @@ pub fn parse_statement(tokens: &mut VecDeque<Token>) -> ASTTree {
             return ASTTree::Statement(Box::new(exp));
         },
     }
+}
+
+// "if" "(" <exp> ")" <statement> [ "else" <statement> ]
+fn parse_if(tokens: &mut VecDeque<Token>) -> ASTTree {
+    let if_tkn = tokens.pop_front();
+    if if_tkn != Some(Token::TIf) {
+        panic!("parse_if could not find if");
+    };
+
+    let lparens = tokens.pop_front();
+    if lparens != Some(Token::TOpenParen) {
+        panic!("parse_if didn't find open paren");
+    };
+
+    let condition = parse_exp(tokens);
+
+    let rparens = tokens.pop_front();
+    if rparens != Some(Token::TCloseParen) {
+        panic!("parse_if didn't find close paren");
+    };
+
+    let if_statement = parse_statement(tokens);
+
+    match tokens.get(0) {
+        Some(Token::TElse) => {
+            tokens.pop_front();
+            let else_statement = parse_statement(tokens);
+            return ASTTree::Conditional(Box::new(condition),
+        Box::new(if_statement), Some(Box::new(else_statement)));
+        },
+        _ => {
+            return ASTTree::Conditional(Box::new(condition), 
+        Box::new(if_statement), None);
+        },
+    };
 }
 
 fn process_return(tokens: &mut VecDeque<Token>) -> ASTTree {
@@ -58,7 +93,10 @@ fn process_return(tokens: &mut VecDeque<Token>) -> ASTTree {
     return ASTTree::Statement(ret);
 }
 
-// "int" <id> [ = <exp>] ";" 
+/*
+    Grammar:
+    <declaration> ::= "int" <id> [ = <exp> ] ";"
+*/
 fn process_declare(tokens: &mut VecDeque<Token>) -> ASTTree {
     tokens.pop_front();
     match tokens.pop_front() {
@@ -180,9 +218,22 @@ pub fn parse_factor(tokens: &mut VecDeque<Token>) -> ASTTree {
                 let factor = parse_factor(tokens);
                 return ASTTree::UnaryOp(inner, Box::new(factor));
             } else {
-                panic!("Parse factor fail");
+                panic!("Parse factor fail 1");
             },
-        _ => panic!("Parse factor fail"),
+        _ => panic!("Parse factor fail 2"),
+    }
+}
+
+/*
+    Grammar:
+    <block-item> ::= <statement> | <declaration>
+*/
+fn parse_block_item(tokens: &mut VecDeque<Token>) -> ASTTree {
+    match tokens.get(0) {
+        // <block-item> ::= <declaration>
+        Some(Token::TInt) => return process_declare(tokens),
+        // <block-item> ::= <statement>
+        _ => return parse_statement(tokens),
     }
 }
 
@@ -221,7 +272,7 @@ pub fn parse_function(tokens: &mut VecDeque<Token>) -> ASTTree {
     let mut next = tokens.get(0);
 
     while next != Some(&Token::TCloseBrace) {
-        body.push(Box::new(parse_statement(tokens)));
+        body.push(Box::new(parse_block_item(tokens)));
         next = tokens.get(0);
     }
 

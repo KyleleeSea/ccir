@@ -117,6 +117,23 @@ pub fn print_ast(tree: ASTTree) {
         ASTTree::Assign(id, child) => {
             print!("assign {}", id);
             print_ast(*child);
+        },
+        ASTTree::BlockItem(child) => {
+            print!("block item ");
+            print_ast(*child);
+        },
+        ASTTree::Conditional(cond, if_statement, else_statement) => {
+            print!("if ");
+            print_ast(*cond);
+            print!("then ");
+            print_ast(*if_statement);
+            match else_statement {
+                None => (),
+                Some(inner) => {
+                    print!("else ");
+                    print_ast(*inner);
+                },
+            };
         }
     }
 }

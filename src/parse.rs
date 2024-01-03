@@ -23,6 +23,13 @@ fn is_un_op(tkn: &Token) -> bool {
     }
 }
 
+fn is_bin_term_op(tkn: Option<&Token>) -> bool {
+    match tkn {
+        Some(inner) => *inner == Token::TMultiply || *inner == Token::TDivide || *inner == Token::TMod,
+        _ => false,
+    }
+}
+
 fn extract_id(token: Option<Token>) -> String {
     match token {
         Some(Token::TIdentifier(id)) => return id,
@@ -277,7 +284,7 @@ fn parse_additive_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
 
 /*
     Grammar:
-    <term> ::= <factor> { ("*" | "/") <factor> }
+    <term> ::= <factor> { ("*" | "/" | "%" ) <factor> }
 */
 pub fn parse_term(tokens: &mut VecDeque<Token>) -> ASTTree {
     let mut factor = parse_factor(tokens);
@@ -286,7 +293,7 @@ pub fn parse_term(tokens: &mut VecDeque<Token>) -> ASTTree {
     let mut op;
     let mut next_factor;
 
-    while next == Some(&Token::TMultiply) || next == Some(&Token::TDivide) {
+    while is_bin_term_op(next) {
         op = match tokens.pop_front() {
             Some(inner) => inner,
             None => panic!("failed parse_term")

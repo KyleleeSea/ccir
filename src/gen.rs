@@ -7,6 +7,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 fn write_prologue(mut file: &File) {
     write_wrapper(write!(file, "push %rbp\n"));
@@ -69,13 +70,16 @@ fn process_function(tree: ASTTree, mut file: File, label_counter: &mut i32) {
             write_wrapper(write!(file, "_{}:\n", id));
             write_prologue(&file);
 
-            let mut stack_ind : i32 = -8;
-            let mut var_map = HashMap::new();
+            let stack_ind : i32 = -8;
+            let var_map = HashMap::new();
 
-            for child in children {
-                process_block(*child, &file, &mut stack_ind, &mut var_map,
+            process_compound(children, &file, stack_ind, var_map,
                 label_counter);
-            }
+
+            // for child in children {
+            //     (stack_ind, var_map) = process_block(*child, &file, stack_ind, 
+            //         var_map, label_counter);
+            // }
 
 
         },
@@ -83,92 +87,138 @@ fn process_function(tree: ASTTree, mut file: File, label_counter: &mut i32) {
     }
 }
 
-fn process_block(tree: ASTTree, file: &File, stack_ind: &mut i32, 
-    var_map: &mut HashMap<String, i32>, label_counter: &mut i32) {
+// Process_block responsible for variable scoping
+fn process_block(tree: ASTTree, file: &File, mut stack_ind: i32, 
+    mut var_map: HashMap<String, i32>, label_counter: &mut i32,
+    mut curr_scope : HashSet<String>)
+    -> (i32, HashMap<String, i32>, HashSet<String>) {
 
     match tree {
         ASTTree::BlockItem(child) => match *child {
             ASTTree::Declare(ref _id, ref _inner_child) => 
-            process_declare(*child, file, stack_ind, var_map, label_counter),
+            (stack_ind, var_map, curr_scope) = process_declare(*child, file, 
+                stack_ind, var_map, label_counter, curr_scope),
 
-            _ => process_statement(*child, file, stack_ind, var_map, 
-            label_counter),
+            _ => {
+                process_statement(*child, file, stack_ind, var_map.clone(), 
+            label_counter);
+            // unit required to make match arms have same type
+            ();
         },
-        _ => invalid_match("process_block"),
+        },
+        _ => panic!("process_block failed"),
     };
+
+    // // deallocate vars
+    // let bytes_to_dealloc = 8 * curr_scope.len();
+    // write_wrapper(write!(file, "addq ${}, %rsp\n", bytes_to_dealloc));
+
+    return (stack_ind, var_map, curr_scope);
 }
 
-// Statement can be Return, Declare, or an arbitrary expression
-fn process_statement(tree: ASTTree, file: &File, stack_ind: &mut i32, 
-    var_map: &mut HashMap<String, i32>, label_counter: &mut i32) {
+// Statement can be Return, Declare, Compound, or an arbitrary expression
+fn process_statement(tree: ASTTree, file: &File, mut stack_ind: i32, 
+    mut var_map: HashMap<String, i32>, label_counter: &mut i32)
+    -> (i32, HashMap<String, i32>) {
     match tree {
         ASTTree::Statement(child) => match *child {
-            ASTTree::Return(inner_child) => process_return(*inner_child, file,
-            stack_ind, var_map, label_counter),
+            ASTTree::Return(inner_child) => process_return(*inner_child, file, 
+                stack_ind, var_map.clone(), label_counter),
 
             ASTTree::Conditional(ref _condition, ref _s1, ref _s2) => 
-            process_conditional(*child, file, stack_ind, var_map, label_counter),
+            (stack_ind, var_map) = process_conditional(*child, file, stack_ind, 
+                var_map, label_counter),
 
-            _ => process_expression(*child, file, stack_ind, var_map, 
+            ASTTree::Compound(block_list) => (stack_ind, var_map) = 
+                process_compound(block_list, file, stack_ind, var_map, 
+                    label_counter),
+
+            _ => process_expression(*child, file, stack_ind, var_map.clone(), 
             label_counter),
         },
-        _ => invalid_match("process_statement"),
-    }
+        _ => panic!("failed process_statement"),
+    };
+
+    return (stack_ind, var_map);
 }
 
-fn process_conditional(tree: ASTTree, mut file: &File, stack_ind: &mut i32, 
-    var_map: &mut HashMap<String, i32>, label_counter: &mut i32) {
+fn process_compound(block_list: Vec<Box<ASTTree>>, mut file: &File, 
+    mut stack_ind: i32, mut var_map: HashMap<String, i32>, 
+    label_counter: &mut i32) -> (i32, HashMap<String, i32>) {
+
+    let mut curr_scope = HashSet::new();
+
+    for block in block_list {
+        (stack_ind, var_map, curr_scope) = process_block(*block, &file, 
+            stack_ind, var_map, label_counter, curr_scope);
+    }
+
+    // deallocate vars
+    let bytes_to_dealloc = 8 * curr_scope.len();
+    write_wrapper(write!(file, "addq ${}, %rsp\n", bytes_to_dealloc));
+
+    return (stack_ind, var_map)
+}
+
+fn process_conditional(tree: ASTTree, mut file: &File, mut stack_ind: i32, 
+    mut var_map: HashMap<String, i32>, label_counter: &mut i32)
+    -> (i32, HashMap<String, i32>)  {
         match tree {
             ASTTree::Conditional(condition, s1, s2_opt) => {
                 match s2_opt {
                     None => {
                         let label_a = get_unique_label(label_counter);
 
-                        process_expression(*condition, file, stack_ind,
-                            var_map, label_counter);
+                        process_expression(*condition, file, stack_ind, 
+                            var_map.clone(), label_counter);
                         write_wrapper(write!(file, "cmpq $0, %rax\n"));
-                        write!(file, "je {}\n", label_a);
+                        write_wrapper(write!(file, "je {}\n", label_a));
 
-                        process_statement(*s1, file, stack_ind, var_map, 
-                            label_counter);
+                        (stack_ind, var_map) = process_statement(*s1, file, 
+                            stack_ind, var_map, label_counter);
                         
                         write_wrapper(write!(file, "{}:\n", label_a));
+
                     },
 
                     Some(s2) => {
                         let label_a = get_unique_label(label_counter);
                         let label_b = get_unique_label(label_counter);
 
-                        process_expression(*condition, file, stack_ind,
-                        var_map, label_counter);
+                        process_expression(*condition, file, stack_ind, 
+                            var_map.clone(), label_counter);
 
                         write_wrapper(write!(file, "cmpq $0, %rax\n"));
                         write_wrapper(write!(file, "je {}\n", label_a));
 
-                        process_statement(*s1, file, stack_ind, var_map, 
-                            label_counter);
+                        (stack_ind, var_map) = process_statement(*s1, file, 
+                            stack_ind, var_map, label_counter);
                         write_wrapper(write!(file, "jmp {}\n", label_b));
 
                         write_wrapper(write!(file, "{}:\n", label_a));
-                        process_statement(*s2, file, stack_ind, var_map, 
-                            label_counter);
+                        (stack_ind, var_map) = process_statement(*s2, file, 
+                            stack_ind, var_map, label_counter);
                         write_wrapper(write!(file, "{}:\n", label_b));
+
                     },
                 }
             },
             _ => invalid_match("process_conditional"),
-        }
+        };
+
+        return (stack_ind, var_map)
 }
 
-fn process_expression(tree: ASTTree, mut file: &File, stack_ind: &mut i32, 
-    var_map: &mut HashMap<String, i32>, label_counter: &mut i32) {
+fn process_expression(tree: ASTTree, mut file: &File, stack_ind: i32, 
+    var_map: HashMap<String, i32>, label_counter: &mut i32)
+    {
     match tree {
         ASTTree::Constant(x) => {
             write_wrapper(write!(file, "movq ${}, %rax\n", x));
         },
         ASTTree::UnaryOp(op, child) => {
-            process_expression(*child, file, stack_ind, var_map, 
-            label_counter);
+            process_expression(*child, file, stack_ind, 
+                var_map, label_counter);
             match op {
                 Token::TNeg => write_wrapper(write!(file, "neg %rax\n")),
                 Token::TBitComp => write_wrapper(write!(file, "not %rax\n")),
@@ -181,8 +231,8 @@ fn process_expression(tree: ASTTree, mut file: &File, stack_ind: &mut i32,
             }
         },
         ASTTree::BinaryOp(left, op, right) => 
-            process_binary_op(*left, op, *right, file, stack_ind, var_map, 
-                label_counter),
+        process_binary_op(*left, op, *right, file, 
+            stack_ind, var_map, label_counter),
 
         ASTTree::Var(id) => {
             match var_map.get(&id) {
@@ -195,7 +245,8 @@ fn process_expression(tree: ASTTree, mut file: &File, stack_ind: &mut i32,
         },
 
         ASTTree::Assign(id, child) => {
-            process_expression(*child, file, stack_ind, var_map, label_counter);
+            process_expression(*child, file, stack_ind, 
+                var_map.clone(), label_counter);
             match var_map.get(&id) {
                 None => panic!("Var assignment without declaration"),
                 Some(&offset) => {
@@ -209,68 +260,68 @@ fn process_expression(tree: ASTTree, mut file: &File, stack_ind: &mut i32,
     }
 }
 
-fn write_arithmetic_partial(left: ASTTree, op: Token, right: ASTTree,  
-    mut file: &File, stack_ind: &mut i32,  var_map: &mut HashMap<String, i32>, 
+fn write_arithmetic_partial(left: ASTTree, right: ASTTree,  
+    mut file: &File, stack_ind: i32,  var_map: HashMap<String, i32>, 
     label_counter: &mut i32) {
 
-    process_expression(left, file, stack_ind, var_map, label_counter);
+    process_expression(left, file, stack_ind, var_map.clone(), label_counter);
     write_wrapper(write!(file, "push %rax\n"));
     process_expression(right, file, stack_ind, var_map, label_counter);
     // e1 in rcx, e2 in rax
     write_wrapper(write!(file, "pop %rcx\n"));
-
 }
 
-fn write_relational_partial(left: ASTTree, op: Token, right: ASTTree,  
-    mut file: &File, stack_ind: &mut i32,  var_map: &mut HashMap<String, i32>, 
+fn write_relational_partial(left: ASTTree, right: ASTTree,  
+    mut file: &File, stack_ind: i32,  var_map: HashMap<String, i32>, 
     label_counter: &mut i32) {
 
-    process_expression(left, file, stack_ind, var_map, label_counter);
+    process_expression(left, file, stack_ind, var_map.clone(), label_counter);
     write_wrapper(write!(file, "push %rax\n"));
     process_expression(right, file, stack_ind, var_map, label_counter);
     // e1 in rcx, e2 in rax
     write_wrapper(write!(file, "pop %rcx\n"));
     write_wrapper(write!(file, "cmpq %rax, %rcx\n"));
     write_wrapper(write!(file, "movq $0, %rax\n"));
+
 }
 
 fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File, 
-    stack_ind: &mut i32,  var_map: &mut HashMap<String, i32>, 
+    stack_ind: i32,  var_map: HashMap<String, i32>, 
     label_counter: &mut i32) {
 
     match op {
         Token::TAdd => {
-            write_arithmetic_partial(left, op, right, file, stack_ind,
+            write_arithmetic_partial(left, right, file, stack_ind,
             var_map, label_counter);
             write_wrapper(write!(file, "addq %rcx, %rax\n"));
         },
         
         Token::TMultiply => {
-            write_arithmetic_partial(left, op, right, file, stack_ind,
+            write_arithmetic_partial(left, right, file, stack_ind,
                 var_map, label_counter);
             write_wrapper(write!(file, "imul %rcx, %rax\n"));
         },
 
         Token::TBitAnd => {
-            write_arithmetic_partial(left, op, right, file, stack_ind, 
+            write_arithmetic_partial(left, right, file, stack_ind, 
                 var_map, label_counter);
             write_wrapper(write!(file, "and %rcx, %rax\n"));
         }
 
         Token::TBitOr => {
-            write_arithmetic_partial(left, op, right, file, stack_ind, 
+            write_arithmetic_partial(left, right, file, stack_ind, 
                 var_map, label_counter);
             write_wrapper(write!(file, "or %rcx, %rax\n"));
         }
 
         Token::TXor => {
-            write_arithmetic_partial(left, op, right, file, stack_ind, 
+            write_arithmetic_partial(left, right, file, stack_ind, 
                 var_map, label_counter);
             write_wrapper(write!(file, "xorq %rcx, %rax\n"));
         }
 
         Token::TRShift => {
-            write_arithmetic_partial(left, op, right, file, stack_ind, 
+            write_arithmetic_partial(left, right, file, stack_ind, 
                 var_map, label_counter);
             // e1 = %rcx, e2 = %rax
             write_wrapper(write!(file, "push %rax\n"));
@@ -280,7 +331,7 @@ fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File,
         }
 
         Token::TLShift => {
-            write_arithmetic_partial(left, op, right, file, stack_ind, 
+            write_arithmetic_partial(left, right, file, stack_ind, 
                 var_map, label_counter);
             write_wrapper(write!(file, "push %rax\n"));
             write_wrapper(write!(file, "movq %rcx, %rax\n"));
@@ -289,7 +340,7 @@ fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File,
         }
 
         Token::TNeg => {
-            write_arithmetic_partial(left, op, right, file, stack_ind,
+            write_arithmetic_partial(left, right, file, stack_ind,
                 var_map, label_counter);
             // want e1 in rax, e2 in ecx
             write_wrapper(write!(file, "movq %rcx, %rdx\n"));
@@ -301,7 +352,7 @@ fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File,
             write_wrapper(write!(file, "subq %rcx, %rax\n"));
         },
         Token::TDivide => {
-            write_arithmetic_partial(left, op, right, file, stack_ind,
+            write_arithmetic_partial(left, right, file, stack_ind,
                 var_map, label_counter);
             // Move e2 into r8 
             write_wrapper(write!(file, "movq %rax, %r8\n"));
@@ -315,7 +366,7 @@ fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File,
             write_wrapper(write!(file, "idivq %r8\n"));
         },
         Token::TMod => {
-            write_arithmetic_partial(left, op, right, file, stack_ind,
+            write_arithmetic_partial(left, right, file, stack_ind,
                 var_map, label_counter);
             // e1 in rcx, e2 in rax
 
@@ -346,7 +397,8 @@ fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File,
         Token::TAnd => {
             let label_a = get_unique_label(label_counter);
             let label_b = get_unique_label(label_counter);
-            process_expression(left, file, stack_ind, var_map, label_counter);
+            process_expression(left, file, stack_ind, var_map.clone(), 
+            label_counter);
             write_wrapper(write!(file, "cmpq $0, %rax\n"));
             write_wrapper(write!(file, "jne {}\n", label_a));
             write_wrapper(write!(file, "jmp {}\n", label_b));
@@ -362,7 +414,8 @@ fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File,
         Token::TOr => {
             let label_a = get_unique_label(label_counter);
             let label_b = get_unique_label(label_counter);
-            process_expression(left, file, stack_ind, var_map, label_counter);
+            process_expression(left, file, stack_ind, var_map.clone(), 
+            label_counter);
             write_wrapper(write!(file, "cmpq $0, %rax\n"));
             write_wrapper(write!(file, "je {}\n", label_a));
             write_wrapper(write!(file, "movq $1, %rax\n"));
@@ -378,32 +431,32 @@ fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File,
             
         },
         Token::TEq => {
-            write_relational_partial(left, op, right, file, stack_ind,
+            write_relational_partial(left, right, file, stack_ind,
             var_map, label_counter);
             write_wrapper(write!(file, "sete %al\n"));
         },
         Token::TNeq => {
-            write_relational_partial(left, op, right, file, stack_ind,
+            write_relational_partial(left, right, file, stack_ind,
                 var_map, label_counter);
             write_wrapper(write!(file, "setne %al\n"));
         },
         Token::TLess => {
-            write_relational_partial(left, op, right, file, stack_ind,
+            write_relational_partial(left, right, file, stack_ind,
                 var_map, label_counter);
             write_wrapper(write!(file, "setl %al\n"));
         },
         Token::TLeq => {
-            write_relational_partial(left, op, right, file, stack_ind,
+            write_relational_partial(left, right, file, stack_ind,
                 var_map, label_counter);
             write_wrapper(write!(file, "setle %al\n"));
         },
         Token::TGreater => {
-            write_relational_partial(left, op, right, file, stack_ind,
+            write_relational_partial(left, right, file, stack_ind,
                 var_map, label_counter);
             write_wrapper(write!(file, "setge %al\n"));
         },
         Token::TGeq => {
-            write_relational_partial(left, op, right, file, stack_ind,
+            write_relational_partial(left, right, file, stack_ind,
                 var_map, label_counter);
              write_wrapper(write!(file, "setg %al\n"));
         },
@@ -414,19 +467,21 @@ fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File,
 
 }
 
-fn process_return(tree: ASTTree, mut file: &File, stack_ind: &mut i32, 
-    var_map: &mut HashMap<String, i32>, label_counter: &mut i32) {
+fn process_return(tree: ASTTree, mut file: &File, stack_ind: i32, 
+    var_map: HashMap<String, i32>, label_counter: &mut i32) {
     process_expression(tree, file, stack_ind, var_map, label_counter);
     write_epilogue(file);
     write_wrapper(write!(file, "{}", "retq\n"));
 }
 
-fn process_declare(tree: ASTTree, mut file: &File, stack_ind: &mut i32, 
-    var_map: &mut HashMap<String, i32>, label_counter: &mut i32) {
+fn process_declare(tree: ASTTree, mut file: &File, mut stack_ind: i32, 
+    mut var_map: HashMap<String, i32>, label_counter: &mut i32, 
+    mut curr_scope : HashSet<String>)
+    -> (i32, HashMap<String, i32>, HashSet<String>) {
     
     match tree {
         ASTTree::Declare(id, child_opt) => {
-            if var_map.get(&id) != None {
+            if curr_scope.get(&id) != None {
                 panic!("Attempted to declare variable of same name twice");
             };
 
@@ -439,15 +494,18 @@ fn process_declare(tree: ASTTree, mut file: &File, stack_ind: &mut i32,
 
                 // Declared with initialization
                 Some(inner_child) => {
-                    process_expression(*inner_child, file, stack_ind, var_map,
-                    label_counter);
+                    process_expression(*inner_child, file, stack_ind, 
+                        var_map.clone(), label_counter);
                     write_wrapper(write!(file, "push %rax\n"));
                 },
             }
 
-            var_map.insert(id, *stack_ind);
-            *stack_ind = *stack_ind - 8;
+            var_map.insert(id.clone(), stack_ind);
+            stack_ind = stack_ind - 8;
+            curr_scope.insert(id);
         },
         _ => panic!("process_declare called on non declare statement"),
-    }
+    };
+
+    return (stack_ind, var_map, curr_scope);
 }

@@ -118,11 +118,6 @@ pub fn print_ast(tree: ASTTree) {
             }
         },
         ASTTree::Var(id) => print!("var {} ", id),
-        ASTTree::Exp(child) => {
-            print!("exp ");
-            print_ast(*child);
-
-        },
         ASTTree::Assign(id, child) => {
             print!("assign {}", id);
             print_ast(*child);
@@ -143,6 +138,13 @@ pub fn print_ast(tree: ASTTree) {
                     print_ast(*inner);
                 },
             };
+        },
+        ASTTree::Compound(block_item_list) => {
+            print!("compound_start ");
+            for block_item in block_item_list {
+                print_ast(*block_item);
+            };
+            print!("compound_end ");
         }
     }
 }

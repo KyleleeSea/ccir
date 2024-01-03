@@ -240,7 +240,7 @@ fn parse_bitxor_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
     let mut op;
     let mut next_bitxor_exp;
 
-    while next == Some(&Token::TBitAnd) {
+    while next == Some(&Token::TXor) {
         op = match tokens.pop_front() {
             Some(inner) => inner,
             None => panic!("failed parse_bitxor_exp"),

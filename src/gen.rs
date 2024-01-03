@@ -251,6 +251,36 @@ fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File,
             write_wrapper(write!(file, "imul %rcx, %rax\n"));
         },
 
+        Token::TBitAnd => {
+            write_arithmetic_partial(left, op, right, file, stack_ind, 
+                var_map, label_counter);
+            write_wrapper(write!(file, "and %rcx, %rax\n"));
+        }
+
+        Token::TBitOr => {
+            write_arithmetic_partial(left, op, right, file, stack_ind, 
+                var_map, label_counter);
+            write_wrapper(write!(file, "or %rcx, %rax\n"));
+        }
+
+        Token::TXor => {
+            write_arithmetic_partial(left, op, right, file, stack_ind, 
+                var_map, label_counter);
+            write_wrapper(write!(file, "xor %rcx, %rax\n"));
+        }
+
+        Token::TRShift => {
+            write_arithmetic_partial(left, op, right, file, stack_ind, 
+                var_map, label_counter);
+            write_wrapper(write!(file, "sar %cl, %rax\n"));
+        }
+
+        Token::TLShift => {
+            write_arithmetic_partial(left, op, right, file, stack_ind, 
+                var_map, label_counter);
+            write_wrapper(write!(file, "shl %cl, %rax\n"));
+        }
+
         Token::TNeg => {
             write_arithmetic_partial(left, op, right, file, stack_ind,
                 var_map, label_counter);

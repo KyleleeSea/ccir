@@ -101,6 +101,7 @@ pub fn print_ast(tree: ASTTree) {
                 Token::TLeq => print!("<= "),
                 Token::TGreater => print!("> "),
                 Token::TGeq => print!(">= "),
+                Token::TMod => print!("% "),
                 _ => print!("unidentified binary op among us"),
             }
             print_ast(*right);

@@ -11,7 +11,7 @@ pub fn lexer() -> Vec<Token> {
 
     let file_path = &args[1];
     
-    let mut contents = fs::read_to_string(file_path)
+    let contents = fs::read_to_string(file_path)
         .expect("Should have been able to read the file");
 
     let mut intlit_acc: Option<String> = None;
@@ -105,7 +105,7 @@ pub fn lexer() -> Vec<Token> {
             Some (ref _inner) => match c {
                 '0' ..= '9' => (),
                 _ => {
-                    tkn_stack.push(intLit_to_token(intlit_acc));
+                    tkn_stack.push(intlit_to_token(intlit_acc));
                     intlit_acc = None;
                 }
             },
@@ -115,7 +115,7 @@ pub fn lexer() -> Vec<Token> {
         // If identif accumulated and we encounter non identif character, push
         match id_acc {
             None => (),
-            Some (ref inner) => if !c.is_alphabetic() && !(c == '_')
+            Some (ref _inner) => if !c.is_alphabetic() && !(c == '_')
                 {
                     tkn_stack.push(identifier_to_token(id_acc));
                     id_acc = None;
@@ -193,7 +193,7 @@ fn identifier_to_token(id: Option<String>) -> Token {
     }
 }
 
-fn intLit_to_token(int_lit: Option<String>) -> Token {
+fn intlit_to_token(int_lit: Option<String>) -> Token {
     match int_lit {
         None => panic!("called intLitToToken on None, shouldn't happen"), 
         // Cast to int

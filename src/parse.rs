@@ -172,7 +172,7 @@ pub fn parse_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
     // could be part of a term
     match tokens.get(0) {
         // <exp> ::= <id> "=" <exp>
-        Some(Token::TIdentifier(id)) => {
+        Some(Token::TIdentifier(_id)) => {
             if tokens.get(1) == Some(&Token::TAssign) {
                 let id = extract_id(tokens.pop_front());
                 tokens.pop_front();

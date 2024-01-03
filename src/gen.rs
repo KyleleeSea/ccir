@@ -266,7 +266,7 @@ fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File,
         Token::TXor => {
             write_arithmetic_partial(left, op, right, file, stack_ind, 
                 var_map, label_counter);
-            write_wrapper(write!(file, "xor %rcx, %rax\n"));
+            write_wrapper(write!(file, "xorq %rcx, %rax\n"));
         }
 
         Token::TRShift => {
@@ -307,6 +307,35 @@ fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File,
             // when I run on lldb...
             write_wrapper(write!(file, "idivq %r8\n"));
         },
+        Token::TMod => {
+            write_arithmetic_partial(left, op, right, file, stack_ind,
+                var_map, label_counter);
+            // e1 in rcx, e2 in rax
+
+            // Using divq S:
+            // Unsigned divide %rdx:%rax by S
+            // Quotient stored in %rax
+            // Remainder stored in %rdx
+            
+            // Temporarily store %rdx, %r8 on stack
+            // Top of stack in order: %rdx, %r8
+            write_wrapper(write!(file, "push %r8\n"));
+            write_wrapper(write!(file, "push %rdx\n"));
+            write_wrapper(write!(file, "movq %rax, %r8\n"));
+
+            // Clear out %rdx, %rcx -> %rax
+            write_wrapper(write!(file, "xorq %rdx, %rdx\n"));
+            write_wrapper(write!(file, "movq %rcx, %rax\n"));
+
+            // %rdx:%rax div %r8 
+            write_wrapper(write!(file, "divq %r8\n"));
+            // Move remainder to %rax
+            write_wrapper(write!(file, "movq %rdx, %rax\n"));
+
+            // Restore %rdx, %r8
+            write_wrapper(write!(file, "pop %rdx\n"));
+            write_wrapper(write!(file, "pop %r8\n"));
+        }
         Token::TAnd => {
             let label_a = get_unique_label(label_counter);
             let label_b = get_unique_label(label_counter);

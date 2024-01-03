@@ -186,7 +186,7 @@ fn parse_exp_inner(tokens: &mut VecDeque<Token>) -> ASTTree {
    <logical-and-exp> ::= <equality-exp> { "&&" <equality-exp> }
 */
 fn parse_logical_and(tokens: &mut VecDeque<Token>) -> ASTTree {
-    let mut eq_exp = parse_eq_exp(tokens);
+    let mut eq_exp = parse_bitor_exp(tokens);
 
     let mut next = tokens.get(0);
     let mut op;
@@ -197,12 +197,84 @@ fn parse_logical_and(tokens: &mut VecDeque<Token>) -> ASTTree {
             Some(inner) => inner,
             None => panic!("failed parse_logical_and")
         };
-        next_eq_exp = parse_eq_exp(tokens);
+        next_eq_exp = parse_bitor_exp(tokens);
         eq_exp = ASTTree::BinaryOp(Box::new(eq_exp), op, Box::new(next_eq_exp));
         next = tokens.get(0);
     }
 
     return eq_exp;
+}
+
+/*
+    Grammar:
+    <bitor-exp> ::= <bitxor-exp> { "|" <bitxor-exp> }
+*/
+fn parse_bitor_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
+    let mut bitor_exp = parse_bitxor_exp(tokens);
+
+    let mut next = tokens.get(0);
+    let mut op;
+    let mut next_bitor_exp;
+
+    while next == Some(&Token::TBitOr) {
+        op = match tokens.pop_front() {
+            Some(inner) => inner,
+            None => panic!("failed parse_bitor_exp"),
+        };
+        next_bitor_exp = parse_bitxor_exp(tokens);
+        bitor_exp = ASTTree::BinaryOp(Box::new(bitor_exp), op,
+            Box::new(next_bitor_exp));
+        next = tokens.get(0);
+    }
+    return bitor_exp;
+}
+
+/*
+    Grammar:
+    <bitxor-exp> ::= <bitand-exp> { "^" <bitand-exp> }
+*/
+fn parse_bitxor_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
+    let mut bitxor_exp = parse_bitand_exp(tokens);
+
+    let mut next = tokens.get(0);
+    let mut op;
+    let mut next_bitxor_exp;
+
+    while next == Some(&Token::TBitAnd) {
+        op = match tokens.pop_front() {
+            Some(inner) => inner,
+            None => panic!("failed parse_bitxor_exp"),
+        };
+        next_bitxor_exp = parse_bitand_exp(tokens);
+        bitxor_exp = ASTTree::BinaryOp(Box::new(bitxor_exp), op,
+            Box::new(next_bitxor_exp));
+        next = tokens.get(0);
+    }
+    return bitxor_exp;
+}
+
+/*
+    Grammar:
+    <bitand-exp> ::= <equality-exp> { "&" <equality-exp> }
+*/
+fn parse_bitand_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
+    let mut bitand_exp = parse_eq_exp(tokens);
+
+    let mut next = tokens.get(0);
+    let mut op;
+    let mut next_bitand_exp;
+
+    while next == Some(&Token::TBitAnd) {
+        op = match tokens.pop_front() {
+            Some(inner) => inner,
+            None => panic!("failed parse_bitand_exp"),
+        };
+        next_bitand_exp = parse_eq_exp(tokens);
+        bitand_exp = ASTTree::BinaryOp(Box::new(bitand_exp), op,
+            Box::new(next_bitand_exp));
+        next = tokens.get(0);
+    }
+    return bitand_exp;
 }
 
 /*
@@ -232,14 +304,14 @@ fn parse_eq_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
 
 /*
     Grammar:
-    <relational-exp> ::= <additive-exp> { ("<" | ">" | "<=" | ">=") <additive-exp> }
+    <relational-exp> ::= <bitshift-exp> { ("<" | ">" | "<=" | ">=") <bitshift-exp> }
 */
 fn parse_relational_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
-    let mut additive_exp = parse_additive_exp(tokens);
+    let mut bitshift_exp = parse_bitshift_exp(tokens);
 
     let mut next = tokens.get(0);
     let mut op;
-    let mut next_additive_exp;
+    let mut next_bitshift_exp;
 
     while next == Some(&Token::TLess) || next == Some(&Token::TLeq)
     || next == Some(&Token::TGreater) || next == Some(&Token::TGeq) {
@@ -247,13 +319,36 @@ fn parse_relational_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
             Some(inner) => inner,
             None => panic!("failed parse_logical_and")
         };
-        next_additive_exp = parse_additive_exp(tokens);
-        additive_exp = ASTTree::BinaryOp(Box::new(additive_exp), op, 
-            Box::new(next_additive_exp));
+        next_bitshift_exp = parse_bitshift_exp(tokens);
+        bitshift_exp = ASTTree::BinaryOp(Box::new(bitshift_exp), op, 
+            Box::new(next_bitshift_exp));
         next = tokens.get(0);
     }
+    return bitshift_exp;
+}
 
-    return additive_exp;
+/*
+    Grammar:
+    <binshift-exp> ::= <additive-exp> { (">>" | "<<") <additive-exp> }
+*/
+fn parse_bitshift_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
+    let mut add_exp = parse_additive_exp(tokens);
+
+    let mut next = tokens.get(0);
+    let mut op;
+    let mut next_add_exp;
+
+    while next == Some(&Token::TLShift) || next == Some(&Token::TRShift) {
+        op = match tokens.pop_front() {
+            Some(inner) => inner,
+            None => panic!("failed parse_bitshift_exp"),
+        };
+        next_add_exp = parse_additive_exp(tokens);
+        add_exp = ASTTree::BinaryOp(Box::new(add_exp), op, 
+            Box::new(next_add_exp));
+        next = tokens.get(0);
+    }
+    return add_exp;
 }
 
 /*

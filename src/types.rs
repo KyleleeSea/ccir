@@ -65,10 +65,10 @@ pub enum ASTTree {
     BinaryOp(Box<ASTTree>, Token, Box<ASTTree>),
     Declare(String, Option<Box<ASTTree>>),
     Var(String),
-    // Not use ASTTree::Exp at all currently...
-    Exp(Box<ASTTree>),
     Assign(String, Box<ASTTree>),
     BlockItem(Box<ASTTree>),
     // Conditional(exp (condition), statement (if), statement option (else))
     Conditional(Box<ASTTree>, Box<ASTTree>, Option<Box<ASTTree>>),
+    // Compound(block_item list)
+    Compound(Vec<Box<ASTTree>>),
 }

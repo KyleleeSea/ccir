@@ -41,6 +41,7 @@ fn extract_id(token: Option<Token>) -> String {
     Grammar:
     <statement> ::= "return" <exp> ";"
                     | "if" "(" <exp> ")" <statement> [ "else" <statement> ]
+                    | "{" { <block-item> } "}
                     | <exp> ";"
 */
 pub fn parse_statement(tokens: &mut VecDeque<Token>) -> ASTTree {
@@ -54,7 +55,13 @@ pub fn parse_statement(tokens: &mut VecDeque<Token>) -> ASTTree {
             let if_block = parse_if(tokens);
             return ASTTree::Statement(Box::new(if_block));
 
-        }
+        },
+
+        Some(Token::TOpenBrace) => {
+            let compound = parse_compound(tokens);
+            return ASTTree::Statement(Box::new(compound));
+        },
+
         _ => {
             let exp = parse_exp(tokens);
             chk_semi(tokens);
@@ -62,6 +69,31 @@ pub fn parse_statement(tokens: &mut VecDeque<Token>) -> ASTTree {
             return ASTTree::Statement(Box::new(exp));
         },
     }
+}
+
+/*
+    Grammar:
+    "{" { <block-item> } "}
+*/
+fn parse_compound(tokens: &mut VecDeque<Token>) -> ASTTree {
+    let open_brace = tokens.pop_front();
+    if open_brace != Some(Token::TOpenBrace) {
+        panic!("parse_compound could not find open brace");
+    };    
+
+    let mut block_item_list = Vec::new();
+
+    let mut next = tokens.get(0);
+
+    while next != Some(&Token::TCloseBrace) {
+        block_item_list.push(Box::new(parse_block_item(tokens)));
+        next = tokens.get(0);
+    }
+
+    // Remove close brace
+    tokens.pop_front();
+
+    return ASTTree::Compound(block_item_list);
 }
 
 // "if" "(" <exp> ")" <statement> [ "else" <statement> ]

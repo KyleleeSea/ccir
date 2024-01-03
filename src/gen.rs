@@ -127,7 +127,7 @@ fn process_conditional(tree: ASTTree, mut file: &File, stack_ind: &mut i32,
                         process_expression(*condition, file, stack_ind,
                             var_map, label_counter);
                         write_wrapper(write!(file, "cmpq $0, %rax\n"));
-                        write!(file, "je {}\n", label_a);
+                        write_wrapper(write!(file, "je {}\n", label_a));
 
                         process_statement(*s1, file, stack_ind, var_map, 
                             label_counter);

@@ -115,19 +115,13 @@ pub fn lexer() -> Vec<Token> {
         // If identif accumulated and we encounter non identif character, push
         match id_acc {
             None => (),
-            Some (ref inner) => match inner.as_str() {
-                "int" | "return" | "if" | "else" | "for"
-                | "while" | "do" | "break" | "continue" => {
-                    tkn_stack.push(identifier_to_token(id_acc));
-                    id_acc = None;
-                },
-                _ => if !c.is_alphabetic() && !(c == '_')
+            Some (ref inner) => if !c.is_alphabetic() && !(c == '_')
                 {
                     tkn_stack.push(identifier_to_token(id_acc));
                     id_acc = None;
                 }
             }
-        }
+        
 
         match c {
             '{' => tkn_stack.push(Token::TOpenBrace),

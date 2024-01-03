@@ -126,8 +126,8 @@ fn process_statement(tree: ASTTree, file: &File, mut stack_ind: i32,
                 stack_ind, var_map.clone(), label_counter),
 
             ASTTree::Conditional(ref _condition, ref _s1, ref _s2) => 
-            (stack_ind, var_map) = process_conditional(*child, file, stack_ind, 
-                var_map, label_counter),
+            process_conditional(*child, file, stack_ind, 
+                var_map.clone(), label_counter),
 
             ASTTree::Compound(block_list) => (stack_ind, var_map) = 
                 process_compound(block_list, file, stack_ind, var_map, 
@@ -162,7 +162,7 @@ fn process_compound(block_list: Vec<Box<ASTTree>>, mut file: &File,
 
 fn process_conditional(tree: ASTTree, mut file: &File, mut stack_ind: i32, 
     mut var_map: HashMap<String, i32>, label_counter: &mut i32)
-    -> (i32, HashMap<String, i32>)  {
+  {
         match tree {
             ASTTree::Conditional(condition, s1, s2_opt) => {
                 match s2_opt {
@@ -174,7 +174,7 @@ fn process_conditional(tree: ASTTree, mut file: &File, mut stack_ind: i32,
                         write_wrapper(write!(file, "cmpq $0, %rax\n"));
                         write_wrapper(write!(file, "je {}\n", label_a));
 
-                        (stack_ind, var_map) = process_statement(*s1, file, 
+                        process_statement(*s1, file, 
                             stack_ind, var_map, label_counter);
                         
                         write_wrapper(write!(file, "{}:\n", label_a));
@@ -191,12 +191,12 @@ fn process_conditional(tree: ASTTree, mut file: &File, mut stack_ind: i32,
                         write_wrapper(write!(file, "cmpq $0, %rax\n"));
                         write_wrapper(write!(file, "je {}\n", label_a));
 
-                        (stack_ind, var_map) = process_statement(*s1, file, 
-                            stack_ind, var_map, label_counter);
+                        process_statement(*s1, file, 
+                            stack_ind, var_map.clone(), label_counter);
                         write_wrapper(write!(file, "jmp {}\n", label_b));
 
                         write_wrapper(write!(file, "{}:\n", label_a));
-                        (stack_ind, var_map) = process_statement(*s2, file, 
+                        process_statement(*s2, file, 
                             stack_ind, var_map, label_counter);
                         write_wrapper(write!(file, "{}:\n", label_b));
 
@@ -206,7 +206,6 @@ fn process_conditional(tree: ASTTree, mut file: &File, mut stack_ind: i32,
             _ => invalid_match("process_conditional"),
         };
 
-        return (stack_ind, var_map)
 }
 
 fn process_expression(tree: ASTTree, mut file: &File, stack_ind: i32, 

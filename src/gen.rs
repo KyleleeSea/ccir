@@ -102,7 +102,7 @@ fn process_block(tree: ASTTree, file: &File, mut stack_ind: i32,
         },
         _ => panic!("process_block failed"),
     };
-    
+
     return (stack_ind, var_map, curr_scope);
 }
 
@@ -176,12 +176,45 @@ fn process_for_decl(decl: Box<ASTTree>, control: Box<ASTTree>,
 fn process_while(condition: Box<ASTTree>, body: Box<ASTTree>, mut file: &File, 
     mut stack_ind: i32, mut var_map: HashMap<String, i32>, 
     label_counter: &mut i32) {
+    
+    let guard_label = get_unique_label(label_counter);
+    let end_of_loop_label = get_unique_label(label_counter);
 
+    write_wrapper(write!(file, "{}:\n", guard_label));
+    // Evaluate expression
+    process_expression(*condition, file, stack_ind, var_map.clone(),
+    label_counter);
+    // If it is false, exit the loop
+    write_wrapper(write!(file, "cmpq $0, %rax\n"));
+    write_wrapper(write!(file, "je {}\n", end_of_loop_label));
+    // Execute statement
+    process_statement(*body, file, stack_ind, var_map.clone(), label_counter);
+    // Jump to the guard label
+    write_wrapper(write!(file, "jmp {}\n", guard_label));
+
+    write_wrapper(write!(file, "{}:\n", end_of_loop_label));
 }
 
 fn process_do(body: Box<ASTTree>, condition: Box<ASTTree>, mut file: &File, 
     mut stack_ind: i32, mut var_map: HashMap<String, i32>, 
     label_counter: &mut i32) {
+    
+    let start_label = get_unique_label(label_counter);
+    let end_of_loop_label = get_unique_label(label_counter);
+
+    write_wrapper(write!(file, "{}:\n", start_label));
+    // 1. Execute statement
+    process_statement(*body, file, stack_ind, var_map.clone(), label_counter);
+    // 2. Evaluate expression
+    process_expression(*condition, file, stack_ind, var_map.clone(),
+    label_counter);
+    // 3. If it is false, exit
+    write_wrapper(write!(file, "cmpq $0, %rax\n"));
+    write_wrapper(write!(file, "je {}\n", end_of_loop_label));
+    // 4. Jump to step 1
+    write_wrapper(write!(file, "jmp {}\n", start_label));
+
+    write_wrapper(write!(file, "{}:\n", end_of_loop_label));
 
 }
 

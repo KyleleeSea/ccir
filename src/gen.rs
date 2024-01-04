@@ -76,12 +76,6 @@ fn process_function(tree: ASTTree, mut file: File, label_counter: &mut i32) {
             process_compound(children, &file, stack_ind, var_map,
                 label_counter);
 
-            // for child in children {
-            //     (stack_ind, var_map) = process_block(*child, &file, stack_ind, 
-            //         var_map, label_counter);
-            // }
-
-
         },
         _ => invalid_match("process_function"),
     }
@@ -108,15 +102,12 @@ fn process_block(tree: ASTTree, file: &File, mut stack_ind: i32,
         },
         _ => panic!("process_block failed"),
     };
-
-    // // deallocate vars
-    // let bytes_to_dealloc = 8 * curr_scope.len();
-    // write_wrapper(write!(file, "addq ${}, %rsp\n", bytes_to_dealloc));
-
+    
     return (stack_ind, var_map, curr_scope);
 }
 
-// Statement can be Return, Declare, Compound, or an arbitrary expression
+// Statement can be Return, Declare, Compound, NullExp,
+// For, ForDecl, While, Do, Continue, Break, or an arbitrary expression
 fn process_statement(tree: ASTTree, file: &File, mut stack_ind: i32, 
     mut var_map: HashMap<String, i32>, label_counter: &mut i32)
     -> (i32, HashMap<String, i32>) {
@@ -133,6 +124,28 @@ fn process_statement(tree: ASTTree, file: &File, mut stack_ind: i32,
                 process_compound(block_list, file, stack_ind, var_map, 
                     label_counter),
 
+            ASTTree::NullExp => (),
+
+            ASTTree::Continue => print!("continue not implemented\n"),
+
+            ASTTree::Break => print!("break not implemented\n"),
+
+            // might need to set stack_ind and var_map in fors, havent thought abt it 
+            // might not need to though idk 
+            ASTTree::For(initopt, control, postopt, body) => process_for(initopt, 
+                control, postopt, body, file, stack_ind, var_map.clone(), 
+                label_counter),
+
+            ASTTree::ForDecl(decl, control, postopt, body) => process_for_decl(decl, 
+                control, postopt, body, file, stack_ind, var_map.clone(), 
+                label_counter),
+
+            ASTTree::While(condition, body) => process_while(condition, body, 
+                file, stack_ind, var_map.clone(), label_counter),
+
+            ASTTree::Do(body, condition) => process_do(body, condition,
+                file, stack_ind, var_map.clone(), label_counter),
+
             _ => process_expression(*child, file, stack_ind, var_map.clone(), 
             label_counter),
         },
@@ -141,6 +154,37 @@ fn process_statement(tree: ASTTree, file: &File, mut stack_ind: i32,
 
     return (stack_ind, var_map);
 }
+
+fn process_for(initopt: Option<Box<ASTTree>>, control: Box<ASTTree>,
+    postopt: Option<Box<ASTTree>>, body: Box<ASTTree>, mut file: &File, 
+    mut stack_ind: i32, mut var_map: HashMap<String, i32>, 
+    label_counter: &mut i32) {
+    
+    print!("for not yet implemented\n");
+
+}
+
+fn process_for_decl(decl: Box<ASTTree>, control: Box<ASTTree>,
+    postopt: Option<Box<ASTTree>>, body: Box<ASTTree>, mut file: &File, 
+    mut stack_ind: i32, mut var_map: HashMap<String, i32>, 
+    label_counter: &mut i32) {
+        
+    print!("for decl not yet implemented\n");
+
+}
+
+fn process_while(condition: Box<ASTTree>, body: Box<ASTTree>, mut file: &File, 
+    mut stack_ind: i32, mut var_map: HashMap<String, i32>, 
+    label_counter: &mut i32) {
+
+}
+
+fn process_do(body: Box<ASTTree>, condition: Box<ASTTree>, mut file: &File, 
+    mut stack_ind: i32, mut var_map: HashMap<String, i32>, 
+    label_counter: &mut i32) {
+
+}
+
 
 fn process_compound(block_list: Vec<Box<ASTTree>>, mut file: &File, 
     mut stack_ind: i32, mut var_map: HashMap<String, i32>, 
@@ -160,7 +204,8 @@ fn process_compound(block_list: Vec<Box<ASTTree>>, mut file: &File,
     return (stack_ind, var_map)
 }
 
-fn process_conditional(tree: ASTTree, mut file: &File, mut stack_ind: i32, mut var_map: HashMap<String, i32>, label_counter: &mut i32)
+fn process_conditional(tree: ASTTree, mut file: &File, mut stack_ind: i32, 
+    mut var_map: HashMap<String, i32>, label_counter: &mut i32)
 {
     match tree {
         ASTTree::Conditional(condition, s1, s2_opt) => {

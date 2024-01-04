@@ -268,6 +268,9 @@ fn process_expression(tree: ASTTree, mut file: &File, stack_ind: i32,
             write_wrapper(write!(file, "jmp {}\n", label_b));
 
             write_wrapper(write!(file, "{}:\n", label_a));
+
+            process_expression(*e3, file, stack_ind, var_map.clone(), label_counter);
+
             write_wrapper(write!(file, "{}:\n", label_b));
         }
 

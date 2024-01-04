@@ -252,6 +252,23 @@ fn process_expression(tree: ASTTree, mut file: &File, stack_ind: i32,
                 offset));
                 },
             }     
+        },
+
+        ASTTree::CondExp(e1, e2, e3) => {
+            let label_a = get_unique_label(label_counter);
+            let label_b = get_unique_label(label_counter);
+
+            process_expression(*e1, file, stack_ind, var_map.clone(), label_counter);
+
+            write_wrapper(write!(file, "cmpq $0, %rax\n"));
+            write_wrapper(write!(file, "je {}\n", label_a));
+
+            process_expression(*e2, file, stack_ind, var_map.clone(), label_counter);
+
+            write_wrapper(write!(file, "jmp {}\n", label_b));
+
+            write_wrapper(write!(file, "{}:\n", label_a));
+            write_wrapper(write!(file, "{}:\n", label_b));
         }
 
         _ => invalid_match("process exp"),

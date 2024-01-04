@@ -74,7 +74,7 @@ fn process_function(tree: ASTTree, mut file: File, label_counter: &mut i32) {
             let var_map = HashMap::new();
 
             process_compound(children, &file, stack_ind, var_map,
-                label_counter);
+                label_counter, None, None);
 
         },
         _ => invalid_match("process_function"),
@@ -84,7 +84,8 @@ fn process_function(tree: ASTTree, mut file: File, label_counter: &mut i32) {
 // Process_block responsible for variable scoping
 fn process_block(tree: ASTTree, file: &File, mut stack_ind: i32, 
     mut var_map: HashMap<String, i32>, label_counter: &mut i32,
-    mut curr_scope : HashSet<String>)
+    mut curr_scope : HashSet<String>,
+    c_label_opt: Option<String>, b_label_opt: Option<String>)
     -> (i32, HashMap<String, i32>, HashSet<String>) {
 
     match tree {
@@ -95,7 +96,7 @@ fn process_block(tree: ASTTree, file: &File, mut stack_ind: i32,
 
             _ => {
                 process_statement(*child, file, stack_ind, var_map.clone(), 
-            label_counter, None, None);
+            label_counter, c_label_opt, b_label_opt);
             // unit required to make match arms have same type
             ();
         },
@@ -123,7 +124,7 @@ fn process_statement(tree: ASTTree, file: &File, mut stack_ind: i32,
 
             ASTTree::Compound(block_list) => (stack_ind, var_map) = 
                 process_compound(block_list, file, stack_ind, var_map, 
-                    label_counter),
+                    label_counter, c_label_opt, b_label_opt),
 
             ASTTree::NullExp => (),
 
@@ -177,6 +178,8 @@ fn process_for(initopt: Option<Box<ASTTree>>, control: Box<ASTTree>,
 
     let guard_label = get_unique_label(label_counter);
     let end_of_loop_label = get_unique_label(label_counter);
+    // exists for continue, as post-exp should still be executed
+    let end_of_body_label = get_unique_label(label_counter);
 
     // 1. Evaluate init
     match initopt {
@@ -194,9 +197,11 @@ fn process_for(initopt: Option<Box<ASTTree>>, control: Box<ASTTree>,
     write_wrapper(write!(file, "je {}\n", end_of_loop_label));
 
     // 4. Execute statement
-    process_statement(*body, file, stack_ind, var_map.clone(), label_counter,
-    Some(guard_label.clone()), Some(end_of_loop_label.clone()));
+    process_statement(*body, file, stack_ind, 
+        var_map.clone(), label_counter, Some(end_of_body_label.clone()), 
+        Some(end_of_loop_label.clone()));
 
+    write_wrapper(write!(file, "{}:\n", end_of_body_label));
     // 5. Execute post-expression
     match postopt {
         None => (),
@@ -212,16 +217,17 @@ fn process_for(initopt: Option<Box<ASTTree>>, control: Box<ASTTree>,
 
 fn process_for_decl(decl: Box<ASTTree>, control: Box<ASTTree>,
     postopt: Option<Box<ASTTree>>, body: Box<ASTTree>, mut file: &File, 
-    stack_ind: i32, var_map: HashMap<String, i32>, 
+    mut stack_ind: i32, mut var_map: HashMap<String, i32>, 
     label_counter: &mut i32) {
         
     let guard_label = get_unique_label(label_counter);
     let end_of_loop_label = get_unique_label(label_counter);
-    let curr_scope = HashSet::new();
+    let end_of_body_label = get_unique_label(label_counter);
+    let mut curr_scope = HashSet::new();
 
     // 1. Evaluate decl
-    process_declare(*decl, file, stack_ind, var_map.clone(), label_counter, 
-        curr_scope.clone());
+    (stack_ind, var_map, curr_scope) = process_declare(*decl, file, stack_ind, 
+        var_map.clone(), label_counter, curr_scope.clone());
 
     write_wrapper(write!(file, "{}:\n", guard_label));
     // 2. Evaluate condition
@@ -232,9 +238,11 @@ fn process_for_decl(decl: Box<ASTTree>, control: Box<ASTTree>,
     write_wrapper(write!(file, "je {}\n", end_of_loop_label));
 
     // 4. Execute statement
-    process_statement(*body, file, stack_ind, var_map.clone(), label_counter,
-    Some(guard_label.clone()), Some(end_of_loop_label.clone()));
+    process_statement(*body, file, stack_ind, 
+        var_map.clone(), label_counter, Some(end_of_body_label.clone()), 
+        Some(end_of_loop_label.clone()));
 
+    write_wrapper(write!(file, "{}:\n", end_of_body_label));
     // 5. Execute post-expression
     match postopt {
         None => (),
@@ -268,7 +276,8 @@ fn process_while(condition: Box<ASTTree>, body: Box<ASTTree>, mut file: &File,
     write_wrapper(write!(file, "cmpq $0, %rax\n"));
     write_wrapper(write!(file, "je {}\n", end_of_loop_label));
     // Execute statement
-    process_statement(*body, file, stack_ind, var_map.clone(), label_counter,
+    process_statement(*body, file, stack_ind,
+        var_map.clone(), label_counter,
     Some(guard_label.clone()), Some(end_of_loop_label.clone()));
     // Jump to the guard label
     write_wrapper(write!(file, "jmp {}\n", guard_label));
@@ -285,7 +294,8 @@ fn process_do(body: Box<ASTTree>, condition: Box<ASTTree>, mut file: &File,
 
     write_wrapper(write!(file, "{}:\n", start_label));
     // 1. Execute statement
-    process_statement(*body, file, stack_ind, var_map.clone(), label_counter,
+    process_statement(*body, file, stack_ind, 
+        var_map.clone(), label_counter,
     Some(start_label.clone()), Some(end_of_loop_label.clone()));
     // 2. Evaluate expression
     process_expression(*condition, file, stack_ind, var_map.clone(),
@@ -297,19 +307,20 @@ fn process_do(body: Box<ASTTree>, condition: Box<ASTTree>, mut file: &File,
     write_wrapper(write!(file, "jmp {}\n", start_label));
 
     write_wrapper(write!(file, "{}:\n", end_of_loop_label));
-
 }
 
 
 fn process_compound(block_list: Vec<Box<ASTTree>>, mut file: &File, 
     mut stack_ind: i32, mut var_map: HashMap<String, i32>, 
-    label_counter: &mut i32) -> (i32, HashMap<String, i32>) {
+    label_counter: &mut i32, c_label_opt: Option<String>, 
+    b_label_opt: Option<String>) -> (i32, HashMap<String, i32>) {
 
     let mut curr_scope = HashSet::new();
 
     for block in block_list {
         (stack_ind, var_map, curr_scope) = process_block(*block, &file, 
-            stack_ind, var_map, label_counter, curr_scope);
+            stack_ind, var_map, label_counter, curr_scope,
+        c_label_opt.clone(), b_label_opt.clone());
     }
 
     // deallocate vars
@@ -634,12 +645,12 @@ fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File,
         Token::TGreater => {
             write_relational_partial(left, right, file, stack_ind,
                 var_map, label_counter);
-            write_wrapper(write!(file, "setge %al\n"));
+            write_wrapper(write!(file, "setg %al\n"));
         },
         Token::TGeq => {
             write_relational_partial(left, right, file, stack_ind,
                 var_map, label_counter);
-             write_wrapper(write!(file, "setg %al\n"));
+             write_wrapper(write!(file, "setge %al\n"));
         },
 
         _ => panic!("Invalid operator found in binaryOp code gen"),

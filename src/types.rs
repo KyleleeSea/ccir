@@ -71,4 +71,7 @@ pub enum ASTTree {
     Conditional(Box<ASTTree>, Box<ASTTree>, Option<Box<ASTTree>>),
     // Compound(block_item list)
     Compound(Vec<Box<ASTTree>>),
+    // CondExp(exp, exp, exp) 
+    // the three expressions are the condition, 'if' expression and 'else' expression, respectively
+    CondExp(Box<ASTTree>, Box<ASTTree>, Box<ASTTree>),
 }

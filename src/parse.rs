@@ -165,7 +165,7 @@ fn process_declare(tokens: &mut VecDeque<Token>) -> ASTTree {
 
 /*
     Grammar:
-    <exp> ::= <id> "=" <exp> | <term> { ("+" | "-") <term> }
+    <exp> ::= <id> "=" <exp> | <conditional-exp>
 */
 pub fn parse_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
     // Need to check this way rather than pattern match as identifier
@@ -180,11 +180,44 @@ pub fn parse_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
                 return ASTTree::Assign(id, Box::new(exp));
             }
             else {
-                return parse_exp_inner(tokens);
+                return parse_conditional_exp(tokens);
             };
         },
         // <exp> ::= <logical-and-exp> { "||" <logical-and-exp> }
-        _ => return parse_exp_inner(tokens),
+        _ => return parse_conditional_exp(tokens),
+    }
+}
+
+/*
+    Grammar:
+    <conditional-exp> ::= <logical-or-exp> [ "?" <exp> ":" <conditional-exp> ]
+*/
+fn parse_conditional_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
+    let logical_or_exp = parse_logical_or(tokens);
+    let next_exp;
+    let next_conditional_exp;
+
+    match tokens.get(0) {
+        Some(Token::TQuestion) => {
+            // Parse
+            tokens.pop_front();
+            next_exp = parse_exp(tokens);
+
+            match tokens.get(0) {
+                Some(Token::TColon) => {
+                    tokens.pop_front();
+                    next_conditional_exp = parse_conditional_exp(tokens);
+                    return ASTTree::CondExp(Box::new(logical_or_exp),
+                        Box::new(next_exp),
+                        Box::new(next_conditional_exp));
+                },
+                _ => panic!("parse_conditional_exp fail")
+            }
+        },
+        // Ternary optional
+        _ => {
+            return logical_or_exp;
+        }
     }
 }
 
@@ -192,7 +225,7 @@ pub fn parse_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
     Grammar:
    <exp> ::= <logical-and-exp> { "||" <logical-and-exp> }
 */
-fn parse_exp_inner(tokens: &mut VecDeque<Token>) -> ASTTree {
+fn parse_logical_or(tokens: &mut VecDeque<Token>) -> ASTTree {
     let mut logical_and_exp = parse_logical_and(tokens);
 
     let mut next = tokens.get(0);

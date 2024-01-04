@@ -95,7 +95,7 @@ fn process_block(tree: ASTTree, file: &File, mut stack_ind: i32,
 
             _ => {
                 process_statement(*child, file, stack_ind, var_map.clone(), 
-            label_counter);
+            label_counter, None, None);
             // unit required to make match arms have same type
             ();
         },
@@ -109,7 +109,8 @@ fn process_block(tree: ASTTree, file: &File, mut stack_ind: i32,
 // Statement can be Return, Declare, Compound, NullExp,
 // For, ForDecl, While, Do, Continue, Break, or an arbitrary expression
 fn process_statement(tree: ASTTree, file: &File, mut stack_ind: i32, 
-    mut var_map: HashMap<String, i32>, label_counter: &mut i32)
+    mut var_map: HashMap<String, i32>, label_counter: &mut i32,
+    c_label_opt: Option<String>, b_label_opt: Option<String>)
     -> (i32, HashMap<String, i32>) {
     match tree {
         ASTTree::Statement(child) => match *child {
@@ -118,7 +119,7 @@ fn process_statement(tree: ASTTree, file: &File, mut stack_ind: i32,
 
             ASTTree::Conditional(ref _condition, ref _s1, ref _s2) => 
             process_conditional(*child, file, stack_ind, 
-                var_map.clone(), label_counter),
+                var_map.clone(), label_counter, c_label_opt, b_label_opt),
 
             ASTTree::Compound(block_list) => (stack_ind, var_map) = 
                 process_compound(block_list, file, stack_ind, var_map, 
@@ -126,9 +127,9 @@ fn process_statement(tree: ASTTree, file: &File, mut stack_ind: i32,
 
             ASTTree::NullExp => (),
 
-            ASTTree::Continue => print!("continue not implemented\n"),
+            ASTTree::Continue => process_continue(c_label_opt, file),
 
-            ASTTree::Break => print!("break not implemented\n"),
+            ASTTree::Break => process_break(b_label_opt, file),
 
             // might need to set stack_ind and var_map in fors, havent thought abt it 
             // might not need to though idk 
@@ -155,26 +156,105 @@ fn process_statement(tree: ASTTree, file: &File, mut stack_ind: i32,
     return (stack_ind, var_map);
 }
 
+fn process_continue(c_label_opt: Option<String>, mut file: &File) {
+    match c_label_opt {
+        None => panic!("continue called outside of a loop!"),
+        Some(label) => write_wrapper(write!(file, "jmp {}\n", label)),
+    };
+}
+
+fn process_break(b_label_opt: Option<String>, mut file: &File) {
+    match b_label_opt {
+        None => panic!("break called outside of a loop!"),
+        Some(label) => write_wrapper(write!(file, "jmp {}\n", label)),
+    };
+}
+
 fn process_for(initopt: Option<Box<ASTTree>>, control: Box<ASTTree>,
     postopt: Option<Box<ASTTree>>, body: Box<ASTTree>, mut file: &File, 
-    mut stack_ind: i32, mut var_map: HashMap<String, i32>, 
+    stack_ind: i32, var_map: HashMap<String, i32>, 
     label_counter: &mut i32) {
-    
-    print!("for not yet implemented\n");
 
+    let guard_label = get_unique_label(label_counter);
+    let end_of_loop_label = get_unique_label(label_counter);
+
+    // 1. Evaluate init
+    match initopt {
+        None => (),
+        Some(init) => process_expression(*init, file, stack_ind, var_map.clone(), 
+            label_counter),
+    };
+
+    write_wrapper(write!(file, "{}:\n", guard_label));
+    // 2. Evaluate condition
+    process_expression(*control, file, stack_ind, var_map.clone(), 
+        label_counter);
+    // 3. If condition false, then exit
+    write_wrapper(write!(file, "cmpq $0, %rax\n"));
+    write_wrapper(write!(file, "je {}\n", end_of_loop_label));
+
+    // 4. Execute statement
+    process_statement(*body, file, stack_ind, var_map.clone(), label_counter,
+    Some(guard_label.clone()), Some(end_of_loop_label.clone()));
+
+    // 5. Execute post-expression
+    match postopt {
+        None => (),
+        Some(post_op) => process_expression(*post_op, file, stack_ind, 
+            var_map.clone(), label_counter),
+    };
+
+    // 6. Jump to step 2
+    write_wrapper(write!(file, "jmp {}\n", guard_label));
+
+    write_wrapper(write!(file, "{}:\n", end_of_loop_label));
 }
 
 fn process_for_decl(decl: Box<ASTTree>, control: Box<ASTTree>,
     postopt: Option<Box<ASTTree>>, body: Box<ASTTree>, mut file: &File, 
-    mut stack_ind: i32, mut var_map: HashMap<String, i32>, 
+    stack_ind: i32, var_map: HashMap<String, i32>, 
     label_counter: &mut i32) {
         
-    print!("for decl not yet implemented\n");
+    let guard_label = get_unique_label(label_counter);
+    let end_of_loop_label = get_unique_label(label_counter);
+    let curr_scope = HashSet::new();
+
+    // 1. Evaluate decl
+    process_declare(*decl, file, stack_ind, var_map.clone(), label_counter, 
+        curr_scope.clone());
+
+    write_wrapper(write!(file, "{}:\n", guard_label));
+    // 2. Evaluate condition
+    process_expression(*control, file, stack_ind, var_map.clone(), 
+        label_counter);
+    // 3. If condition false, then exit
+    write_wrapper(write!(file, "cmpq $0, %rax\n"));
+    write_wrapper(write!(file, "je {}\n", end_of_loop_label));
+
+    // 4. Execute statement
+    process_statement(*body, file, stack_ind, var_map.clone(), label_counter,
+    Some(guard_label.clone()), Some(end_of_loop_label.clone()));
+
+    // 5. Execute post-expression
+    match postopt {
+        None => (),
+        Some(post_op) => process_expression(*post_op, file, stack_ind, 
+            var_map.clone(), label_counter),
+    };
+
+    // 6. Jump to step 2
+    write_wrapper(write!(file, "jmp {}\n", guard_label));
+
+    write_wrapper(write!(file, "{}:\n", end_of_loop_label));
+    // 7. Deallocate variable declared in for loop header
+    let bytes_to_dealloc = 8 * curr_scope.len();
+    write_wrapper(write!(file, "addq ${}, %rsp\n", bytes_to_dealloc));
+
 
 }
 
 fn process_while(condition: Box<ASTTree>, body: Box<ASTTree>, mut file: &File, 
-    mut stack_ind: i32, mut var_map: HashMap<String, i32>, 
+    stack_ind: i32, var_map: HashMap<String, i32>, 
     label_counter: &mut i32) {
     
     let guard_label = get_unique_label(label_counter);
@@ -188,7 +268,8 @@ fn process_while(condition: Box<ASTTree>, body: Box<ASTTree>, mut file: &File,
     write_wrapper(write!(file, "cmpq $0, %rax\n"));
     write_wrapper(write!(file, "je {}\n", end_of_loop_label));
     // Execute statement
-    process_statement(*body, file, stack_ind, var_map.clone(), label_counter);
+    process_statement(*body, file, stack_ind, var_map.clone(), label_counter,
+    Some(guard_label.clone()), Some(end_of_loop_label.clone()));
     // Jump to the guard label
     write_wrapper(write!(file, "jmp {}\n", guard_label));
 
@@ -196,7 +277,7 @@ fn process_while(condition: Box<ASTTree>, body: Box<ASTTree>, mut file: &File,
 }
 
 fn process_do(body: Box<ASTTree>, condition: Box<ASTTree>, mut file: &File, 
-    mut stack_ind: i32, mut var_map: HashMap<String, i32>, 
+    stack_ind: i32, var_map: HashMap<String, i32>, 
     label_counter: &mut i32) {
     
     let start_label = get_unique_label(label_counter);
@@ -204,7 +285,8 @@ fn process_do(body: Box<ASTTree>, condition: Box<ASTTree>, mut file: &File,
 
     write_wrapper(write!(file, "{}:\n", start_label));
     // 1. Execute statement
-    process_statement(*body, file, stack_ind, var_map.clone(), label_counter);
+    process_statement(*body, file, stack_ind, var_map.clone(), label_counter,
+    Some(start_label.clone()), Some(end_of_loop_label.clone()));
     // 2. Evaluate expression
     process_expression(*condition, file, stack_ind, var_map.clone(),
     label_counter);
@@ -237,8 +319,9 @@ fn process_compound(block_list: Vec<Box<ASTTree>>, mut file: &File,
     return (stack_ind, var_map)
 }
 
-fn process_conditional(tree: ASTTree, mut file: &File, mut stack_ind: i32, 
-    mut var_map: HashMap<String, i32>, label_counter: &mut i32)
+fn process_conditional(tree: ASTTree, mut file: &File, stack_ind: i32, 
+    var_map: HashMap<String, i32>, label_counter: &mut i32,
+    c_label_opt: Option<String>, b_label_opt: Option<String>)
 {
     match tree {
         ASTTree::Conditional(condition, s1, s2_opt) => {
@@ -252,7 +335,8 @@ fn process_conditional(tree: ASTTree, mut file: &File, mut stack_ind: i32,
                     write_wrapper(write!(file, "je {}\n", label_a));
 
                     process_statement(*s1, file, 
-                        stack_ind, var_map, label_counter);
+                        stack_ind, var_map, label_counter, c_label_opt,
+                    b_label_opt);
                     
                     write_wrapper(write!(file, "{}:\n", label_a));
 
@@ -269,12 +353,14 @@ fn process_conditional(tree: ASTTree, mut file: &File, mut stack_ind: i32,
                     write_wrapper(write!(file, "je {}\n", label_a));
 
                     process_statement(*s1, file, 
-                        stack_ind, var_map.clone(), label_counter);
+                        stack_ind, var_map.clone(), label_counter,
+                    c_label_opt.clone(), b_label_opt.clone());
                     write_wrapper(write!(file, "jmp {}\n", label_b));
 
                     write_wrapper(write!(file, "{}:\n", label_a));
                     process_statement(*s2, file, 
-                        stack_ind, var_map, label_counter);
+                        stack_ind, var_map, label_counter, c_label_opt.clone(),
+                        b_label_opt.clone());
                     write_wrapper(write!(file, "{}:\n", label_b));
 
                 },

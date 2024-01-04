@@ -223,7 +223,7 @@ fn parse_conditional_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
 
 /*
     Grammar:
-   <exp> ::= <logical-and-exp> { "||" <logical-and-exp> }
+   <logical-or-exp> ::= <logical-and-exp> { "||" <logical-and-exp> }
 */
 fn parse_logical_or(tokens: &mut VecDeque<Token>) -> ASTTree {
     let mut logical_and_exp = parse_logical_and(tokens);

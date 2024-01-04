@@ -160,51 +160,50 @@ fn process_compound(block_list: Vec<Box<ASTTree>>, mut file: &File,
     return (stack_ind, var_map)
 }
 
-fn process_conditional(tree: ASTTree, mut file: &File, mut stack_ind: i32, 
-    mut var_map: HashMap<String, i32>, label_counter: &mut i32)
-  {
-        match tree {
-            ASTTree::Conditional(condition, s1, s2_opt) => {
-                match s2_opt {
-                    None => {
-                        let label_a = get_unique_label(label_counter);
+fn process_conditional(tree: ASTTree, mut file: &File, mut stack_ind: i32, mut var_map: HashMap<String, i32>, label_counter: &mut i32)
+{
+    match tree {
+        ASTTree::Conditional(condition, s1, s2_opt) => {
+            match s2_opt {
+                None => {
+                    let label_a = get_unique_label(label_counter);
 
-                        process_expression(*condition, file, stack_ind, 
-                            var_map.clone(), label_counter);
-                        write_wrapper(write!(file, "cmpq $0, %rax\n"));
-                        write_wrapper(write!(file, "je {}\n", label_a));
+                    process_expression(*condition, file, stack_ind, 
+                        var_map.clone(), label_counter);
+                    write_wrapper(write!(file, "cmpq $0, %rax\n"));
+                    write_wrapper(write!(file, "je {}\n", label_a));
 
-                        process_statement(*s1, file, 
-                            stack_ind, var_map, label_counter);
-                        
-                        write_wrapper(write!(file, "{}:\n", label_a));
+                    process_statement(*s1, file, 
+                        stack_ind, var_map, label_counter);
+                    
+                    write_wrapper(write!(file, "{}:\n", label_a));
 
-                    },
+                },
 
-                    Some(s2) => {
-                        let label_a = get_unique_label(label_counter);
-                        let label_b = get_unique_label(label_counter);
+                Some(s2) => {
+                    let label_a = get_unique_label(label_counter);
+                    let label_b = get_unique_label(label_counter);
 
-                        process_expression(*condition, file, stack_ind, 
-                            var_map.clone(), label_counter);
+                    process_expression(*condition, file, stack_ind, 
+                        var_map.clone(), label_counter);
 
-                        write_wrapper(write!(file, "cmpq $0, %rax\n"));
-                        write_wrapper(write!(file, "je {}\n", label_a));
+                    write_wrapper(write!(file, "cmpq $0, %rax\n"));
+                    write_wrapper(write!(file, "je {}\n", label_a));
 
-                        process_statement(*s1, file, 
-                            stack_ind, var_map.clone(), label_counter);
-                        write_wrapper(write!(file, "jmp {}\n", label_b));
+                    process_statement(*s1, file, 
+                        stack_ind, var_map.clone(), label_counter);
+                    write_wrapper(write!(file, "jmp {}\n", label_b));
 
-                        write_wrapper(write!(file, "{}:\n", label_a));
-                        process_statement(*s2, file, 
-                            stack_ind, var_map, label_counter);
-                        write_wrapper(write!(file, "{}:\n", label_b));
+                    write_wrapper(write!(file, "{}:\n", label_a));
+                    process_statement(*s2, file, 
+                        stack_ind, var_map, label_counter);
+                    write_wrapper(write!(file, "{}:\n", label_b));
 
-                    },
-                }
-            },
-            _ => invalid_match("process_conditional"),
-        };
+                },
+            }
+        },
+        _ => invalid_match("process_conditional"),
+    };
 
 }
 
@@ -253,6 +252,26 @@ fn process_expression(tree: ASTTree, mut file: &File, stack_ind: i32,
                 offset));
                 },
             }     
+        },
+
+        ASTTree::CondExp(e1, e2, e3) => {
+            let label_a = get_unique_label(label_counter);
+            let label_b = get_unique_label(label_counter);
+
+            process_expression(*e1, file, stack_ind, var_map.clone(), label_counter);
+
+            write_wrapper(write!(file, "cmpq $0, %rax\n"));
+            write_wrapper(write!(file, "je {}\n", label_a));
+
+            process_expression(*e2, file, stack_ind, var_map.clone(), label_counter);
+
+            write_wrapper(write!(file, "jmp {}\n", label_b));
+
+            write_wrapper(write!(file, "{}:\n", label_a));
+
+            process_expression(*e3, file, stack_ind, var_map.clone(), label_counter);
+
+            write_wrapper(write!(file, "{}:\n", label_b));
         }
 
         _ => invalid_match("process exp"),
@@ -322,7 +341,6 @@ fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File,
         Token::TRShift => {
             write_arithmetic_partial(left, right, file, stack_ind, 
                 var_map, label_counter);
-            // e1 = %rcx, e2 = %rax
             write_wrapper(write!(file, "push %rax\n"));
             write_wrapper(write!(file, "movq %rcx, %rax\n"));
             write_wrapper(write!(file, "pop %rcx\n"));

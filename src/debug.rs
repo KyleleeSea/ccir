@@ -145,6 +145,14 @@ pub fn print_ast(tree: ASTTree) {
                 print_ast(*block_item);
             };
             print!("compound_end ");
+        },
+        ASTTree::CondExp(e1, e2, e3) => {
+            print!("ternary ");
+            print_ast(*e1);
+            print!("? ");
+            print_ast(*e2);
+            print!(": ");
+            print_ast(*e3);
         }
     }
 }

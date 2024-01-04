@@ -153,6 +153,71 @@ pub fn print_ast(tree: ASTTree) {
             print_ast(*e2);
             print!(": ");
             print_ast(*e3);
-        }
+        },
+        ASTTree::For(initopt, control, postopt, body) => {
+            print!("\n");
+            print!("for ");
+            match initopt {
+                None => print!("no init "),
+                | Some(init) => {
+                    print!("init: ");
+                    print_ast(*init);
+                },
+            };
+            print!("control: ");
+            print_ast(*control);
+            match postopt {
+                None => print!("no postexp "),
+                | Some(postexp) => {
+                    print!("postexp: ");
+                    print_ast(*postexp);
+                },
+            };
+            print!("body: ");
+            print_ast(*body);
+            print!("\n");
+        },
+        ASTTree::ForDecl(decl, control, postopt, body) => {
+            print!("\n");
+            print!("for decl ");
+            print_ast(*decl);
+            print!("control: ");
+            print_ast(*control);
+            match postopt {
+                None => print!("no postexp "),
+                | Some(postexp) => {
+                    print!("postexp: ");
+                    print_ast(*postexp);
+                },
+            };
+            print!("body: ");
+            print_ast(*body);
+            print!("\n");
+        },
+        ASTTree::While(condition, body) => {
+            print!("\n");
+            print!("while: condition ");
+            print_ast(*condition);
+            print!("body ");
+            print_ast(*body);
+            print!("\n");
+        },
+        ASTTree::Do(body, condition) => {
+            print!("\n");
+            print!("while: body ");
+            print_ast(*body);
+            print!("condition ");
+            print_ast(*condition);
+            print!("\n");
+        },
+        ASTTree::Break => {
+            print!("break ");
+        },
+        ASTTree::Continue => {
+            print!("continue ");
+        },
+        ASTTree::NullExp => {
+            print!("null exp ");
+        },
     }
 }

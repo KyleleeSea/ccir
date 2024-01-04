@@ -74,4 +74,17 @@ pub enum ASTTree {
     // CondExp(exp, exp, exp) 
     // the three expressions are the condition, 'if' expression and 'else' expression, respectively
     CondExp(Box<ASTTree>, Box<ASTTree>, Box<ASTTree>),
+    // For(exp option (initial expression), exp (controlling expression),
+    // exp option (post-expression), statement (body))
+    For(Option<Box<ASTTree>>, Box<ASTTree>, Option<Box<ASTTree>>, Box<ASTTree>),
+    // ForDecl(declaration (initial declaration ), exp (controlling exp),
+    // exp option (post-expression), statement (body))
+    ForDecl(Box<ASTTree>, Box<ASTTree>, Option<Box<ASTTree>>, Box<ASTTree>),
+    // While(expression (condition), statement (body))
+    While(Box<ASTTree>, Box<ASTTree>),
+    // Do(statement (body), expression (condition))
+    Do(Box<ASTTree>, Box<ASTTree>), 
+    Break,
+    Continue,
+    NullExp,
 }

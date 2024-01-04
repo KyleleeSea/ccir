@@ -154,7 +154,7 @@ pub fn print_ast(tree: ASTTree) {
             print!(": ");
             print_ast(*e3);
         },
-        ASTTree::For(initopt, control, postopt, body) {
+        ASTTree::For(initopt, control, postopt, body) => {
             print!("\n");
             print!("for ");
             match initopt {
@@ -177,7 +177,7 @@ pub fn print_ast(tree: ASTTree) {
             print_ast(*body);
             print!("\n");
         },
-        ASTTree::ForDecl(decl, control, postopt, body) {
+        ASTTree::ForDecl(decl, control, postopt, body) => {
             print!("\n");
             print!("for decl ");
             print_ast(*decl);
@@ -194,7 +194,7 @@ pub fn print_ast(tree: ASTTree) {
             print_ast(*body);
             print!("\n");
         },
-        ASTTree::While(condition, body) {
+        ASTTree::While(condition, body) => {
             print!("\n");
             print!("while: condition ");
             print_ast(*condition);
@@ -202,7 +202,7 @@ pub fn print_ast(tree: ASTTree) {
             print_ast(*body);
             print!("\n");
         },
-        ASTTree::Do(body, condition) {
+        ASTTree::Do(body, condition) => {
             print!("\n");
             print!("while: body ");
             print_ast(*body);
@@ -210,13 +210,13 @@ pub fn print_ast(tree: ASTTree) {
             print_ast(*condition);
             print!("\n");
         },
-        ASTTree::Break {
+        ASTTree::Break => {
             print!("break ");
         },
-        ASTTree::Continue {
+        ASTTree::Continue => {
             print!("continue ");
         },
-        ASTTree:NullExp {
+        ASTTree::NullExp => {
             print!("null exp ");
         },
     }

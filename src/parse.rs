@@ -16,6 +16,12 @@ pub fn chk_semi(tokens: &mut VecDeque<Token>) {
     }
 }
 
+fn chk_token(tokens: &mut VecDeque<Token>, target: Token, err: &str) {
+    if tokens.pop_front() != Some(target) {
+        panic!("could not find target {}", err);
+    }
+}
+
 fn is_un_op(tkn: &Token) -> bool {
     match tkn {
         Token::TNeg | Token::TBitComp | Token::TLNeg => true,
@@ -40,7 +46,7 @@ fn extract_id(token: Option<Token>) -> String {
 fn is_for_decl(tokens: &mut VecDeque<Token>) -> bool {
     // Assumed at this point tokens.get(0) is "for", tokens.get(1) is "("
     match tokens.get(2) {
-        Some(Tokens::TInt) => return true,
+        Some(Token::TInt) => return true,
         _ => return false,
     };
 }
@@ -81,32 +87,33 @@ pub fn parse_statement(tokens: &mut VecDeque<Token>) -> ASTTree {
         },
 
         // <null-exp> ";"
-        Some(Token::TSemiColon) => {
+        Some(Token::TSemicolon) => {
             tokens.pop_front();
-            return ASTTree:Statement(Box::new(NullExp));
+            return ASTTree::Statement(Box::new(ASTTree::NullExp));
         },
 
         Some(Token::TFor) => {
+            let mut node;
             // "for" "(" <declaration> <exp-option> ";" <exp-option> ")" <statement>
-            if check_for_decl(tokens) {
-                let node = parse_for_decl(tokens);
+            if is_for_decl(tokens) {
+                node = parse_for_decl(tokens);
             }
             // for" "(" <exp-option> ";" <exp-option> ";" <exp-option> ")" <statement>
             else {
-                let node = parse_for(tokens);
+                node = parse_for(tokens);
             }
 
             return ASTTree::Statement(Box::new(node));
         },
 
         // "while" "(" <exp> ")" <statement>
-        Some(Token::TWhile(ref _cond, ref _body)) => {
+        Some(Token::TWhile) => {
             let while_node = parse_while(tokens);
             return ASTTree::Statement(Box::new(while_node));
         },
 
         // "do" <statement> "while" "(" <exp> ")" ";"
-        Some(Token::TDo(ref _body, ref _cond)) => {
+        Some(Token::TDo) => {
             let do_node = parse_do(tokens);
             return ASTTree::Statement(Box::new(do_node));
         },
@@ -140,7 +147,36 @@ pub fn parse_statement(tokens: &mut VecDeque<Token>) -> ASTTree {
     "do" <statement> "while" "(" <exp> ")" ";"
 */
 fn parse_do(tokens: &mut VecDeque<Token>) -> ASTTree {
+    chk_token(tokens, Token::TDo, "parse_do, do");
+    // let do_keyword = tokens.pop_front();
+    // if do_keyword != Some(Token::TDo) {
+    //     panic!("parse_do could not find do keyword");
+    // };   
 
+    let body = parse_statement(tokens);
+
+    chk_token(tokens, Token::TWhile, "parse_do, while");
+    // let while_keyword = tokens.pop_front();
+    // if while_keyword != Some(Token::TWhile) {
+    //     panic!("parse_do could not find while keyword");
+    // };   
+
+    chk_token(tokens, Token::TOpenParen, "parse_do, open paren");
+    // let open_paren = tokens.pop_front();
+    // if open_paren != Some(Token::TOpenParen) {
+    //     panic!("parse_do could not find open paren");
+    // };   
+
+    let condition = parse_exp(tokens);
+
+    chk_token(tokens, Token::TCloseParen, "parse_do, close paren");
+    chk_token(tokens, Token::TSemicolon, "parse_do, semicolon");
+    // let close_paren = tokens.pop_front();
+    // if open_paren != Some(Token::TOpenParen) {
+    //     panic!("parse_do could not find open paren");
+    // };   
+
+    return ASTTree::Do(Box::new(body), Box::new(condition));
 }
 
 /*
@@ -148,7 +184,14 @@ fn parse_do(tokens: &mut VecDeque<Token>) -> ASTTree {
     "while" "(" <exp> ")" <statement>
 */
 fn parse_while(tokens: &mut VecDeque<Token>) -> ASTTree {
+    chk_token(tokens, Token::TWhile, "parse_while, while");
+    chk_token(tokens, Token::TOpenParen, "parse_while, open paren");
 
+    let condition = parse_exp(tokens);
+    chk_token(tokens, Token::TCloseParen, "parse_while, close paren");
+    let body = parse_statement(tokens);
+
+    return ASTTree::While(Box::new(condition), Box::new(body));
 }
 
 /*
@@ -156,7 +199,41 @@ fn parse_while(tokens: &mut VecDeque<Token>) -> ASTTree {
     "for" "(" <declaration> <exp-option> ";" <exp-option> ")" <statement>
 */
 fn parse_for_decl(tokens: &mut VecDeque<Token>) -> ASTTree {
+    chk_token(tokens, Token::TFor, "parse_for_decl, for");
+    chk_token(tokens, Token::TOpenParen, "parse_for_decl, open paren");
 
+    let mut controlling;
+    let mut postop;
+
+    let decl = Box::new(process_declare(tokens));
+
+    match tokens.get(0) {
+        Some(Token::TSemicolon) => {
+            tokens.pop_front();
+            // not sure if this is correct / complies with code gen format
+            // may need to wrap the constant in something
+            controlling = Box::new(ASTTree::Constant(1));
+        },
+        _ => {
+            controlling = Box::new(parse_exp(tokens));
+            chk_token(tokens, Token::TSemicolon, "parse_for, semicolon");
+        },
+    };
+
+    match tokens.get(0) {
+        Some(Token::TCloseParen) => {
+            tokens.pop_front();
+            postop = None;
+        },
+        _ => {
+            postop = Some(Box::new(parse_exp(tokens)));
+            chk_token(tokens, Token::TCloseParen, "parse_for_decl, close paren");
+        },
+    };
+
+    let body = Box::new(parse_statement(tokens));
+
+    return ASTTree::ForDecl(decl, controlling, postop, body);
 }
 
 /*
@@ -164,7 +241,56 @@ fn parse_for_decl(tokens: &mut VecDeque<Token>) -> ASTTree {
     for" "(" <exp-option> ";" <exp-option> ";" <exp-option> ")" <statement>
 */
 fn parse_for(tokens: &mut VecDeque<Token>) -> ASTTree {
+    chk_token(tokens, Token::TFor, "parse_for, for");
+    chk_token(tokens, Token::TOpenParen, "parse_for, open paren");
 
+    let mut controlling;
+    let mut postop;
+    let mut init;
+
+    // <exp-option> ";"
+    match tokens.get(0) {
+        Some(Token::TSemicolon) => {
+            tokens.pop_front();
+            init = None;
+        },
+        _ => {
+            init = Some(Box::new(parse_exp(tokens)));
+            chk_token(tokens, Token::TSemicolon, "parse_for, semicolon");
+        },
+    };
+
+    // <exp-option> ";"
+    match tokens.get(0) {
+        Some(Token::TSemicolon) => {
+            tokens.pop_front();
+            // not sure if this is correct / complies with code gen format
+            // may need to wrap the constant in something
+            controlling = Box::new(ASTTree::Constant(1));
+        },
+        _ => {
+            controlling = Box::new(parse_exp(tokens));
+            chk_token(tokens, Token::TSemicolon, "parse_for, semicolon");
+        },
+    };
+
+    // <exp-option> ")"
+    match tokens.get(0) {
+        Some(Token::TCloseParen) => {
+            tokens.pop_front();
+            // not sure if this is correct / complies with code gen format
+            // may need to wrap the constant in something
+            postop = None;
+        },
+        _ => {
+            postop = Some(Box::new(parse_exp(tokens)));
+            chk_token(tokens, Token::TCloseParen, "parse_for, close paren");
+        },
+    };
+
+    let body = Box::new(parse_statement(tokens));
+
+    return ASTTree::For(init, controlling, postop, body);
 }
 
 

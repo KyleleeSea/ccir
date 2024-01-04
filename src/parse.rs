@@ -37,31 +37,95 @@ fn extract_id(token: Option<Token>) -> String {
     }
 }
 
+fn is_for_decl(tokens: &mut VecDeque<Token>) -> bool {
+    // Assumed at this point tokens.get(0) is "for", tokens.get(1) is "("
+    match tokens.get(2) {
+        Some(Tokens::TInt) => return true,
+        _ => return false,
+    };
+}
+
 /*
     Grammar:
     <statement> ::= "return" <exp> ";"
                     | "if" "(" <exp> ")" <statement> [ "else" <statement> ]
                     | "{" { <block-item> } "}
+                    | <null-exp> ";"
+                    | "for" "(" <declaration> <exp-option> ";" <exp-option> ")" <statement>
+                    |"for" "(" <exp-option> ";" <exp-option> ";" <exp-option> ")" <statement>
+                    | "while" "(" <exp> ")" <statement>
+                    | "do" <statement> "while" "(" <exp> ")" ";"
+                    | "break" ";"
+                    | "continue" ";"
                     | <exp> ";"
 */
 pub fn parse_statement(tokens: &mut VecDeque<Token>) -> ASTTree {
     match tokens.get(0) {
+        // "return" <exp> ";"
         Some(Token::TReturn) => {
             let ret = process_return(tokens);
             return ASTTree::Statement(Box::new(ret));
         }
         
+        // "if" "(" <exp> ")" <statement> [ "else" <statement> ]
         Some(Token::TIf) => {
             let if_block = parse_if(tokens);
             return ASTTree::Statement(Box::new(if_block));
 
         },
 
+        // "{" { <block-item> } "}
         Some(Token::TOpenBrace) => {
             let compound = parse_compound(tokens);
             return ASTTree::Statement(Box::new(compound));
         },
 
+        // <null-exp> ";"
+        Some(Token::TSemiColon) => {
+            tokens.pop_front();
+            return ASTTree:Statement(Box::new(NullExp));
+        },
+
+        Some(Token::TFor) => {
+            // "for" "(" <declaration> <exp-option> ";" <exp-option> ")" <statement>
+            if check_for_decl(tokens) {
+                let node = parse_for_decl(tokens);
+            }
+            // for" "(" <exp-option> ";" <exp-option> ";" <exp-option> ")" <statement>
+            else {
+                let node = parse_for(tokens);
+            }
+
+            return ASTTree::Statement(Box::new(node));
+        },
+
+        // "while" "(" <exp> ")" <statement>
+        Some(Token::TWhile(ref _cond, ref _body)) => {
+            let while_node = parse_while(tokens);
+            return ASTTree::Statement(Box::new(while_node));
+        },
+
+        // "do" <statement> "while" "(" <exp> ")" ";"
+        Some(Token::TDo(ref _body, ref _cond)) => {
+            let do_node = parse_do(tokens);
+            return ASTTree::Statement(Box::new(do_node));
+        },
+
+        //  "break" ";"
+        Some(Token::TBreak) => {
+            tokens.pop_front();
+            chk_semi(tokens);
+            return ASTTree::Statement(Box::new(ASTTree::Break));
+        },
+
+        // "continue" ";"
+        Some(Token::TContinue) => {
+            tokens.pop_front();
+            chk_semi(tokens);
+            return ASTTree::Statement(Box::new(ASTTree::Continue));
+        },
+
+        // <exp> ";"
         _ => {
             let exp = parse_exp(tokens);
             chk_semi(tokens);
@@ -70,6 +134,39 @@ pub fn parse_statement(tokens: &mut VecDeque<Token>) -> ASTTree {
         },
     }
 }
+
+/*
+    Grammar:
+    "do" <statement> "while" "(" <exp> ")" ";"
+*/
+fn parse_do(tokens: &mut VecDeque<Token>) -> ASTTree {
+
+}
+
+/*
+    Grammar:
+    "while" "(" <exp> ")" <statement>
+*/
+fn parse_while(tokens: &mut VecDeque<Token>) -> ASTTree {
+
+}
+
+/*
+    Grammar:
+    "for" "(" <declaration> <exp-option> ";" <exp-option> ")" <statement>
+*/
+fn parse_for_decl(tokens: &mut VecDeque<Token>) -> ASTTree {
+
+}
+
+/*
+    Grammar:
+    for" "(" <exp-option> ";" <exp-option> ";" <exp-option> ")" <statement>
+*/
+fn parse_for(tokens: &mut VecDeque<Token>) -> ASTTree {
+
+}
+
 
 /*
     Grammar:

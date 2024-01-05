@@ -321,6 +321,8 @@ fn parse_if(tokens: &mut VecDeque<Token>) -> ASTTree {
 fn parse_return(tokens: &mut VecDeque<Token>) -> ASTTree {
     tokens.pop_front();
     let exp = parse_exp(tokens);
+    debug::print_tkn_vec(tokens);
+    print!("\n\n\n");
     chk_token(tokens, Token::TSemicolon, "parse_return, semicolon");
 
     return ASTTree::Return(Box::new(exp));
@@ -713,6 +715,7 @@ pub fn parse_function_call(tokens: &mut VecDeque<Token>) -> ASTTree {
 
     if next == Some(&Token::TCloseParen) {
         // Case: id "(" ")"
+        tokens.pop_front();
         return ASTTree::FuncCall(func_id, Vec::new());
     }
 
@@ -777,7 +780,10 @@ pub fn parse_function(tokens: &mut VecDeque<Token>) -> ASTTree {
 
         match tokens.get(0) {
             // Case: "int" <id" "(" ")" ";"
-            Some(&Token::TSemicolon) => return ASTTree::Function(func_id, Vec::new(), None),
+            Some(&Token::TSemicolon) => {
+                tokens.pop_front();
+                return ASTTree::Function(func_id, Vec::new(), None);
+            }
             // Case: "int" <id> "(" ")" "{" { <block-item> } "}"
             Some(&Token::TOpenBrace) => {
                 let func_body = parse_compound(tokens);
@@ -822,6 +828,8 @@ pub fn parse_program(tokens: &mut VecDeque<Token>) -> ASTTree {
     let mut func_list: Vec<Box<ASTTree>> = Vec::new();
     let mut func_decl;
     while !tokens.is_empty() {
+        debug::print_tkn_vec(tokens);
+        print!("\n\n\n");
         func_decl = parse_function(tokens);
         func_list.push(Box::new(func_decl));
     }

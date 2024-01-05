@@ -805,10 +805,16 @@ pub fn parse_function(tokens: &mut VecDeque<Token>) -> ASTTree {
                 break
             }
         }
-
-        // Parse rest of function body
-        let func_body = parse_compound(tokens);
-        return ASTTree::Function(func_id, id_list, Some(Box::new(func_body)));
+        
+        // Could possibly end with just semicolon
+        if tokens.get(0) == Some(&Token::TSemicolon) {
+            tokens.pop_front();
+            return ASTTree::Function(func_id, id_list, None);
+        } else {
+            // Parse rest of function body
+            let func_body = parse_compound(tokens);
+            return ASTTree::Function(func_id, id_list, Some(Box::new(func_body)));
+        }
     }
 }
 

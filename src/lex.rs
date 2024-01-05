@@ -115,7 +115,7 @@ pub fn lexer() -> Vec<Token> {
         // If identif accumulated and we encounter non identif character, push
         match id_acc {
             None => (),
-            Some (ref _inner) => if !c.is_alphabetic() && !(c == '_')
+            Some (ref _inner) => if !c.is_alphanumeric() && (c != '_')
                 {
                     tkn_stack.push(identifier_to_token(id_acc));
                     id_acc = None;
@@ -147,15 +147,25 @@ pub fn lexer() -> Vec<Token> {
             ',' => tkn_stack.push(Token::TComma),
             // skip whitespace
             '\t' | '\n' | '\r' | ' ' => continue,
-            '0' ..= '9' => match intlit_acc {
-                // begin accumulating an intlit
-                None => 
-                    intlit_acc = Some(c.to_string()),
-                // continue accumulating intlit
-                Some (inner) => 
-                    intlit_acc = Some(format!("{}{}",inner.clone(), 
+            '0' ..= '9' => 
+                {
+                    // Must do this match as an identifier could be name3
+                    match id_acc {
+                        None => {
+                            match intlit_acc {
+                                // begin accumulating an intlit
+                                None => 
+                                    intlit_acc = Some(c.to_string()),
+                                // continue accumulating intlit
+                                Some (inner) => 
+                                    intlit_acc = Some(format!("{}{}",inner.clone(), 
+                                        c.to_string())),
+                            }
+                        },
+                        Some(inner) => id_acc = Some(format!("{}{}", inner.clone(), 
                         c.to_string())),
-            },
+                    }
+                },
             _ => if c.is_alphabetic() || c == '_' {
                 match id_acc {
                     None => 

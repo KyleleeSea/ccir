@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use super::types::Token;
 use super::types::ASTTree;
 
-pub fn print_tkn_vec(tkn_stack: &mut VecDeque<Token>) {
+pub fn print_tkn_vec(tkn_stack: &mut Vec<Token>) {
     for el in tkn_stack {
         match el {
             Token::TOpenBrace => print!("open brace "),

@@ -2,6 +2,7 @@ use std::vec::Vec;
 use std::option::Option;
 
 #[derive(PartialEq)]
+#[derive(Clone)]
 pub enum Token {
     TOpenBrace,
     TCloseBrace,
@@ -54,6 +55,7 @@ pub enum LexerFlag {
     Less,
     Greater
 }
+
 
 pub enum ASTTree {
     Program(Vec<Box<ASTTree>>),

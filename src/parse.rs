@@ -358,9 +358,13 @@ fn parse_declare(tokens: &mut VecDeque<Token>) -> ASTTree {
 pub fn parse_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
     // Need to check this way rather than pattern match as identifier
     // could be part of a term
-    match tokens.get(0) {
+    match (tokens.get(0), tokens.get(1)) {
         // <exp> ::= <id> "=" <exp>
-        Some(Token::TIdentifier(_id)) => {
+        (Some(Token::TIdentifier(_func_id)),
+         Some(Token::TOpenParen)) => {
+            return parse_conditional_exp(tokens);
+        }
+        (Some(Token::TIdentifier(_id)), _) => {
             if tokens.get(1) == Some(&Token::TAssign) {
                 let id = extract_id(tokens.pop_front());
                 tokens.pop_front();
@@ -372,7 +376,7 @@ pub fn parse_exp(tokens: &mut VecDeque<Token>) -> ASTTree {
             };
         },
         // <exp> ::= <logical-and-exp> { "||" <logical-and-exp> }
-        _ => return parse_conditional_exp(tokens),
+        (_, _) => return parse_conditional_exp(tokens),
     }
 }
 
@@ -659,39 +663,38 @@ pub fn parse_term(tokens: &mut VecDeque<Token>) -> ASTTree {
     <factor> ::= <function-call> | "(" <exp> ")" | <int> | <id> | <unary_op> <factor>
 */
 pub fn parse_factor(tokens: &mut VecDeque<Token>) -> ASTTree {
-    match tokens.get(0) {
+    let tkn = tokens.pop_front();
+    match tkn {
         // <factor> ::= "(" <exp> ")"
-        Some(&Token::TOpenParen) => {
-            tokens.pop_front();
+        Some(Token::TOpenParen) => {
             let exp = parse_exp(tokens);
             chk_token(tokens, Token::TCloseParen, "parse_factor, close paren");
             return exp;
         },
         // <factor> ::= <int>
-        Some(&Token::TIntLit(x)) => {
-            tokens.pop_front();
+        Some(Token::TIntLit(x)) => {
             return ASTTree::Constant(x);
         },
         // <factor> ::= <id>
-        Some(&Token::TIdentifier(id)) => {
-            tokens.pop_front();
+        Some(Token::TIdentifier(id)) => {
+            // <function-call>
+            if tokens.get(0) == Some(&Token::TOpenParen) {
+                // Mega scuffed
+                tokens.push_front(Token::TIdentifier(id));
+                return parse_function_call(tokens);
+            }
             return ASTTree::Var(id);
         },
-        Some(&inner) => {
+        Some(inner) => {
             // <factor> ::= <unary_op> <factor>
-            tokens.pop_front();
             if is_un_op(&inner) {
                 let factor = parse_factor(tokens);
                 return ASTTree::UnaryOp(inner, Box::new(factor));
             } else {
                 panic!("Parse factor fail 1");
             };
-        }
-        Some(&Token::TIdentifier(func_id)) => {
-            // <function-call>
-            return parse_function_call(tokens);
         },
-        _ => panic!("Parse factor fail 2"),
+        _ => panic!("parse_factor fail"),
     }
 }
 
@@ -701,10 +704,10 @@ pub fn parse_factor(tokens: &mut VecDeque<Token>) -> ASTTree {
     <function-call> ::= id "(" [ <exp> { "," <exp> } ] ")"
 */
 pub fn parse_function_call(tokens: &mut VecDeque<Token>) -> ASTTree {
-    let mut func_id = extract_id(tokens.pop_front());
+    let func_id = extract_id(tokens.pop_front());
     chk_token(tokens, Token::TOpenParen, "parse_function_call open parens fail");
     
-    let mut next = tokens.get(0);
+    let next = tokens.get(0);
 
     // <function-call> ::= id "(" [ <exp> { "," <exp> } ] ")"
 
@@ -754,10 +757,8 @@ fn parse_block_item(tokens: &mut VecDeque<Token>) -> ASTTree {
     <function> ::= "int" <id> "(" [ "int" <id> { "," "int" <id> } ] ")" ( "{" { <block-item> } "}" | ";" )
 */
 pub fn parse_function(tokens: &mut VecDeque<Token>) -> ASTTree {
-    let func_type;
-    match tokens.pop_front() {
-        Some(Token::TInt) => func_type = Token::TInt,
-        _ => panic!("Parse function type fail"),
+    if tokens.pop_front() != Some(Token::TInt) {
+        panic!("Parse function type fail")
     }
 
     let func_id;
@@ -769,7 +770,7 @@ pub fn parse_function(tokens: &mut VecDeque<Token>) -> ASTTree {
     // Parens 
     chk_token(tokens, Token::TOpenParen, "parse_function, open paren");
 
-    let mut next = tokens.get(0);
+    let next = tokens.get(0);
 
     if next == Some(&Token::TCloseParen) {
         tokens.pop_front();
@@ -787,8 +788,7 @@ pub fn parse_function(tokens: &mut VecDeque<Token>) -> ASTTree {
     } else {
         let mut id_list: Vec<String> = Vec::new();
 
-        // <function> ::= "int" <id> "(" [ "int" <id> { "," "int" <id> } ] ")" ( "{" { <block-item> } "}" | ";" )
-
+        // Case: "int" <id> "(" [ "int" <id> { "," "int" <id> } ] ")" ( "{" { <block-item> } "}" | ";" )
         while tokens.get(0) == Some(&Token::TInt) {
             tokens.pop_front();
             match tokens.pop_front() {

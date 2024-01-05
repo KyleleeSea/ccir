@@ -56,7 +56,6 @@ pub enum LexerFlag {
     Greater
 }
 
-
 pub enum ASTTree {
     Program(Vec<Box<ASTTree>>),
     // Function declarations
@@ -94,4 +93,10 @@ pub enum ASTTree {
     Break,
     Continue,
     NullExp,
+}
+
+#[derive(Clone)]
+pub enum VarType {
+    Reg(String),
+    Stk(i32),
 }

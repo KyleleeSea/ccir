@@ -151,12 +151,11 @@ fn process_function(id: String, args: Vec<String>, bodyopt: Option<Box<ASTTree>>
         Some(body) => {
             write_wrapper(write!(file, ".globl _{}\n", id));
             write_wrapper(write!(file, "_{}:\n", id));
+            // write_prologue takes care of callee saving
             write_prologue(&file);
-            // add callee saving and such here
-            // i think you do need to case on if its main
 
             // 5 = number of args we push in prologue
-            let stack_ind : i32 = -8 * 5;
+            let mut stack_ind : i32 = -8 * 5;
             let mut var_map = HashMap::new();
 
             // add arguments to var_map
@@ -166,7 +165,9 @@ fn process_function(id: String, args: Vec<String>, bodyopt: Option<Box<ASTTree>>
                         ind_to_arg_register(ind))));
                 }
                 else {
-                    print!("does not yet support > 6 arguments");
+                    // might have to -8 first
+                    var_map.insert(elt.to_string(), VarType::Stk(stack_ind));
+                    stack_ind = stack_ind - 8;
                 }
             }
 
@@ -202,7 +203,6 @@ fn process_func_call(id: String, args: Vec<Box<ASTTree>>, mut file: &File,
         },
     }
 
-
     // save caller registers, could optimize by only saving 
     // the ones you use. also r10 and r11 caller saved
     write_wrapper(write!(file, "push %rdi\n"));
@@ -211,24 +211,43 @@ fn process_func_call(id: String, args: Vec<Box<ASTTree>>, mut file: &File,
     write_wrapper(write!(file, "push %rcx\n"));
     write_wrapper(write!(file, "push %r8\n"));
     write_wrapper(write!(file, "push %r9\n"));
-
-    // Place the arguments in registers or stack
-    // STACK NOT YET IMPLEMENTED, MAX 6 ARGS
+    // not 100% sure this is correct 
+    stack_ind = stack_ind - (8 * 6);
 
     let mut ind = 0;
+    let mut stack_args : Vec<ASTTree> = Vec::new();
+    let mut arg_unwrapped;
 
     // for some reason using iter().enumerate() throws a borrow error
     for arg in args {
-        process_expression(*arg, file, stack_ind, var_map.clone(), 
+        arg_unwrapped = process_expression(*arg, file, stack_ind, var_map.clone(), 
         label_counter, fn_validator);
-        write_wrapper(write!(file, "movq %rax, %{}\n", 
-            ind_to_arg_register(ind)));
+        // Write the first six to registers
+        if ind <= 5 {
+            write_wrapper(write!(file, "movq %rax, %{}\n", 
+                ind_to_arg_register(ind)));
+        }
+        // Then use the stack, must process in reverse order
+        else {
+            stack_args.push(arg_unwrapped);
+        }
         ind = ind + 1;
+    }
+
+    let stack_arg_bytes = 8 * stack_args.len();
+    for arg in stack_args {
+        process_expression(arg, file, stack_ind, var_map.clone(), 
+        label_counter, fn_validator);
+        write_wrapper(write!(file, "pushq %rax\n"));
+        stack_ind = stack_ind - 8;
     }
 
     write_wrapper(write!(file, "call _{}\n", id));
 
     // remove additional params from stack
+    if stack_arg_bytes > 0 {
+        write_wrapper(write!(file, "addq ${}, %rsp\n", stack_arg_bytes));
+    }
 
     // restore caller registers
     write_wrapper(write!(file, "pop %r9\n"));
@@ -311,8 +330,11 @@ fn process_statement(tree: ASTTree, file: &File, mut stack_ind: i32,
             ASTTree::FuncCall(id, args) => process_func_call(id, args, file,
             stack_ind, var_map.clone(), label_counter, fn_validator),
 
-            _ => process_expression(*child, file, stack_ind, var_map.clone(), 
-            label_counter, fn_validator),
+            _ => {
+                process_expression(*child, file, stack_ind, var_map.clone(), 
+            label_counter, fn_validator);
+            ();
+        },
         },
         _ => panic!("failed process_statement"),
     };
@@ -347,8 +369,11 @@ fn process_for(initopt: Option<Box<ASTTree>>, control: Box<ASTTree>,
     // 1. Evaluate init
     match initopt {
         None => (),
-        Some(init) => process_expression(*init, file, stack_ind, var_map.clone(), 
-            label_counter, fn_validator),
+        Some(init) => {
+            process_expression(*init, file, stack_ind, var_map.clone(), 
+            label_counter, fn_validator);
+            ();
+        },
     };
 
     write_wrapper(write!(file, "{}:\n", guard_label));
@@ -368,8 +393,11 @@ fn process_for(initopt: Option<Box<ASTTree>>, control: Box<ASTTree>,
     // 5. Execute post-expression
     match postopt {
         None => (),
-        Some(post_op) => process_expression(*post_op, file, stack_ind, 
-            var_map.clone(), label_counter, fn_validator),
+        Some(post_op) => {
+            process_expression(*post_op, file, stack_ind, 
+            var_map.clone(), label_counter, fn_validator);
+            ();
+        },
     };
 
     // 6. Jump to step 2
@@ -409,8 +437,11 @@ fn process_for_decl(decl: Box<ASTTree>, control: Box<ASTTree>,
     // 5. Execute post-expression
     match postopt {
         None => (),
-        Some(post_op) => process_expression(*post_op, file, stack_ind, 
-            var_map.clone(), label_counter, fn_validator),
+        Some(post_op) => {
+            process_expression(*post_op, file, stack_ind, 
+            var_map.clone(), label_counter, fn_validator);
+            ();
+        },
     };
 
     // 6. Jump to step 2
@@ -547,9 +578,10 @@ fn process_conditional(tree: ASTTree, mut file: &File, stack_ind: i32,
 
 }
 
+// We return the tree back for use in process_func_call
 fn process_expression(tree: ASTTree, mut file: &File, stack_ind: i32, 
     var_map: HashMap<String, VarType>, label_counter: &mut i32, 
-    fn_validator: &HashMap<String, FnType>)
+    fn_validator: &HashMap<String, FnType>) -> ASTTree
     {
     match tree {
         ASTTree::Constant(x) => {
@@ -630,6 +662,8 @@ fn process_expression(tree: ASTTree, mut file: &File, stack_ind: i32,
 
         _ => invalid_match("process exp"),
     }
+
+    return tree;
 }
 
 fn write_arithmetic_partial(left: ASTTree, right: ASTTree,  

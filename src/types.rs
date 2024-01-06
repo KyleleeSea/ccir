@@ -100,3 +100,8 @@ pub enum VarType {
     Reg(String),
     Stk(i32),
 }
+
+pub enum FnType {
+    Defn(usize),
+    Decl(usize)
+}

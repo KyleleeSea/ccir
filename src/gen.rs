@@ -139,6 +139,7 @@ pub fn generate(tree: ASTTree) {
     .expect("Failed to execute command");
 }
 
+// Callee
 fn process_function(id: String, args: Vec<String>, bodyopt: Option<Box<ASTTree>>, 
     mut file: &File, label_counter: &mut i32, 
     fn_validator: &HashMap<String, FnType>) {
@@ -190,7 +191,7 @@ fn process_function(id: String, args: Vec<String>, bodyopt: Option<Box<ASTTree>>
     }
 }
 
-// caller
+// Caller
 fn process_func_call(id: String, mut args: Vec<Box<ASTTree>>, mut file: &File, 
     mut stack_ind: i32, mut var_map: HashMap<String, VarType>, 
     label_counter: &mut i32, fn_validator: &HashMap<String, FnType>) {
@@ -238,23 +239,6 @@ fn process_func_call(id: String, mut args: Vec<Box<ASTTree>>, mut file: &File,
    // pad rsp
    write_wrapper(write!(file, "subq %rdx, %rsp\n"));
    write_wrapper(write!(file, "pushq %rdx\n"));
-
-
-
-
-   /*
-   movl %esp, %eax
-   subl $n, %eax    ; n = (4*(arg_count + 1)), # of bytes allocated for arguments + padding value itself
-                    ; eax now contains the value ESP will have when call instruction is executed
-   xorl %edx, %edx  ; zero out EDX, which will contain remainder of division
-   movl $0x20, %ecx ; 0x20 = 16
-   idivl %ecx       ; calculate eax / 16. EDX contains remainder, i.e. # of bytes to subtract from ESP 
-   subl %edx, %esp  ; pad ESP
-   pushl %edx       ; push padding result onto stack; we'll need it to deallocate padding later
-   ; ...push arguments, call function, remove arguments...
-   popl %edx        ; pop padding result
-   addl %edx, %esp  ; remove padding
-   */ 
 
     // +1 is the padding push
     stack_ind = stack_ind - (8 * (num_saved_i+1));
@@ -310,20 +294,6 @@ fn process_func_call(id: String, mut args: Vec<Box<ASTTree>>, mut file: &File,
     write_wrapper(write!(file, "popq %rdx\n"));
     // remove padding from rsp
     write_wrapper(write!(file, "addq %rdx, %rsp\n"));
-
-    /*
-    movl %esp, %eax
-    subl $n, %eax    ; n = (4*(arg_count + 1)), # of bytes allocated for arguments + padding value itself
-                     ; eax now contains the value ESP will have when call instruction is executed
-    xorl %edx, %edx  ; zero out EDX, which will contain remainder of division
-    movl $0x20, %ecx ; 0x20 = 16
-    idivl %ecx       ; calculate eax / 16. EDX contains remainder, i.e. # of bytes to subtract from ESP 
-    subl %edx, %esp  ; pad ESP
-    pushl %edx       ; push padding result onto stack; we'll need it to deallocate padding later
-    ; ...push arguments, call function, remove arguments...
-    popl %edx        ; pop padding result
-    addl %edx, %esp  ; remove padding
-    */ 
 
     // restore caller registers
     write_wrapper(write!(file, "pop %r9\n"));
@@ -836,9 +806,6 @@ fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File,
             write_wrapper(write!(file, "movq %r13, %rax\n"));
             // Sign extend into r12
             write_wrapper(write!(file, "cqo\n"));
-            // Interesting behavior... %r14 is supposed to be 
-            // the dst, but the result always goes into %rax
-            // when I run on lldb...
             write_wrapper(write!(file, "idivq %r14\n"));
         },
         Token::TMod => {

@@ -18,7 +18,7 @@ fn write_prologue(mut file: &File) {
     write_wrapper(write!(file, "push %r13\n"));
     write_wrapper(write!(file, "push %r14\n"));
     write_wrapper(write!(file, "push %r15\n"));
-    // rbx and r15 also callee saved
+    // rbx also callee saved, not saving because we don't use rbx anywhere
 }
 
 fn write_epilogue(mut file: &File) {
@@ -140,14 +140,13 @@ pub fn generate(tree: ASTTree) {
 }
 
 fn process_function(id: String, args: Vec<String>, bodyopt: Option<Box<ASTTree>>, 
-    mut file: &File, label_counter: &mut i32, fn_validator: &HashMap<String, FnType>) {
+    mut file: &File, label_counter: &mut i32, 
+    fn_validator: &HashMap<String, FnType>) {
 
     match bodyopt {
-        // none case likely do validation
-        // Case 1) Function declaration
+        // Case 1) Function declaration, no assembly needed
         None => (),
         // Case 2) Function definition
-        // Treat as callee
         Some(body) => {
             write_wrapper(write!(file, ".globl _{}\n", id));
             write_wrapper(write!(file, "_{}:\n", id));
@@ -157,9 +156,13 @@ fn process_function(id: String, args: Vec<String>, bodyopt: Option<Box<ASTTree>>
             // 5 = number of args we push in prologue
             let mut stack_ind : i32 = -8 * 5;
             let mut var_map = HashMap::new();
+            // +8 ebp pushed, +8 return addr pushed because of call
+            let mut param_offset = 16;
+            let mut curr_scope = HashSet::new();
 
             // account for stack space taken up by caller register saving
             if id != String::from("main") {
+                // 6 caller registers saved
                 stack_ind = stack_ind - (8*6);
             }
 
@@ -168,18 +171,19 @@ fn process_function(id: String, args: Vec<String>, bodyopt: Option<Box<ASTTree>>
                 if ind <= 5 {
                     var_map.insert(elt.to_string(), VarType::Reg(String::from(
                         ind_to_arg_register(ind))));
+                    curr_scope.insert(elt.to_string());
                 }
-                // wait need to do reverse order here
                 else {
-                    // might have to -8 first
-                    var_map.insert(elt.to_string(), VarType::Stk(stack_ind));
-                    stack_ind = stack_ind - 8;
+                    var_map.insert(elt.to_string(), VarType::Stk(param_offset));
+                    param_offset = param_offset+8;
+                    curr_scope.insert(elt.to_string());
                 }
             }
 
             match *body {
                 ASTTree::Compound(children) => process_compound(children, &file, 
-                    stack_ind, var_map, label_counter, None, None, fn_validator),
+                    stack_ind, var_map, label_counter, None, None, fn_validator,
+                    Some(curr_scope)),
                 _ => panic!("compound not found as body in process_function"),
             };  
         },
@@ -207,18 +211,57 @@ fn process_func_call(id: String, mut args: Vec<Box<ASTTree>>, mut file: &File,
 
     // save caller registers, could optimize by only saving 
     // the ones you use. also r10 and r11 caller saved
+    let num_saved_u : usize = 6;
+    let num_saved_i : i32 = 6;
+
     write_wrapper(write!(file, "push %rdi\n"));
     write_wrapper(write!(file, "push %rsi\n"));
     write_wrapper(write!(file, "push %rdx\n"));
     write_wrapper(write!(file, "push %rcx\n"));
     write_wrapper(write!(file, "push %r8\n"));
     write_wrapper(write!(file, "push %r9\n"));
-    // not 100% sure this is correct 
-    stack_ind = stack_ind - (8 * 6);
+
+   // Calculate padding to maintain 16 byte alignment on call
+   write_wrapper(write!(file, "movq %rsp, %rax\n"));
+   if args.len() > num_saved_u {
+       // first 6 args already accounted for by automatic push of caller 
+       // saved registers
+       write_wrapper(write!(file, "subq ${}, %rax\n", 8*((args.len() - num_saved_u) + 1)));
+   }
+
+   // zero out rdx which will contain division remainder
+   write_wrapper(write!(file, "xorq %rdx, %rdx\n"));
+   // 0x20 = 16 in decimal
+   write_wrapper(write!(file, "movq $0x20, %rcx\n"));
+   // edx will contain the remainder
+   write_wrapper(write!(file, "idivq %rcx\n"));
+   // pad rsp
+   write_wrapper(write!(file, "subq %rdx, %rsp\n"));
+   write_wrapper(write!(file, "pushq %rdx\n"));
+
+
+
+
+   /*
+   movl %esp, %eax
+   subl $n, %eax    ; n = (4*(arg_count + 1)), # of bytes allocated for arguments + padding value itself
+                    ; eax now contains the value ESP will have when call instruction is executed
+   xorl %edx, %edx  ; zero out EDX, which will contain remainder of division
+   movl $0x20, %ecx ; 0x20 = 16
+   idivl %ecx       ; calculate eax / 16. EDX contains remainder, i.e. # of bytes to subtract from ESP 
+   subl %edx, %esp  ; pad ESP
+   pushl %edx       ; push padding result onto stack; we'll need it to deallocate padding later
+   ; ...push arguments, call function, remove arguments...
+   popl %edx        ; pop padding result
+   addl %edx, %esp  ; remove padding
+   */ 
+
+    // +1 is the padding push
+    stack_ind = stack_ind - (8 * (num_saved_i+1));
 
     let mut ind = 0;
     // Case 1) All arguments go into registers
-    if args.len() <= 6 {
+    if args.len() <= num_saved_u {
         for arg in args {
             process_expression(*arg, file, stack_ind, var_map.clone(), 
             label_counter, fn_validator);
@@ -234,7 +277,7 @@ fn process_func_call(id: String, mut args: Vec<Box<ASTTree>>, mut file: &File,
     }
     // Case 2) Some arguments must go on the stack
     else {
-        let mut stk_args = args.split_off(6);
+        let mut stk_args = args.split_off(num_saved_u);
         stk_args.reverse();
 
         for arg in args {
@@ -243,6 +286,8 @@ fn process_func_call(id: String, mut args: Vec<Box<ASTTree>>, mut file: &File,
 
             write_wrapper(write!(file, "movq %rax, %{}\n", 
                 ind_to_arg_register(ind)));
+            
+            ind = ind + 1;
         }
 
         let stack_arg_bytes = 8 * stk_args.len();
@@ -261,39 +306,24 @@ fn process_func_call(id: String, mut args: Vec<Box<ASTTree>>, mut file: &File,
         }
     }
 
-    // let mut stack_args : Vec<Box<ASTTree>> = Vec::new();
+    // pop padding
+    write_wrapper(write!(file, "popq %rdx\n"));
+    // remove padding from rsp
+    write_wrapper(write!(file, "addq %rdx, %rsp\n"));
 
-    // // for some reason using iter().enumerate() throws a borrow error
-    // for arg in args {
-    //     process_expression(*arg, file, stack_ind, var_map.clone(), 
-    //     label_counter, fn_validator);
-    //     // Write the first six to registers
-    //     if ind <= 5 {
-    //         write_wrapper(write!(file, "movq %rax, %{}\n", 
-    //             ind_to_arg_register(ind)));
-    //     }
-    //     // Then use the stack, must process in reverse order
-    //     else {
-    //         stack_args.push(arg);
-    //     }
-    //     ind = ind + 1;
-    // }   
-
-    
-    // for arg in stack_args {
-    //     process_expression(*arg, file, stack_ind, var_map.clone(), 
-    //     label_counter, fn_validator);
-    //     write_wrapper(write!(file, "pushq %rax\n"));
-    //     stack_ind = stack_ind - 8;
-    // }
-
-    // write_wrapper(write!(file, "call _{}\n", id));
-
-    // // remove additional params from stack
-    // let stack_arg_bytes = 8 * stack_args.len();
-    // if stack_arg_bytes > 0 {
-    //     write_wrapper(write!(file, "addq ${}, %rsp\n", stack_arg_bytes));
-    // }
+    /*
+    movl %esp, %eax
+    subl $n, %eax    ; n = (4*(arg_count + 1)), # of bytes allocated for arguments + padding value itself
+                     ; eax now contains the value ESP will have when call instruction is executed
+    xorl %edx, %edx  ; zero out EDX, which will contain remainder of division
+    movl $0x20, %ecx ; 0x20 = 16
+    idivl %ecx       ; calculate eax / 16. EDX contains remainder, i.e. # of bytes to subtract from ESP 
+    subl %edx, %esp  ; pad ESP
+    pushl %edx       ; push padding result onto stack; we'll need it to deallocate padding later
+    ; ...push arguments, call function, remove arguments...
+    popl %edx        ; pop padding result
+    addl %edx, %esp  ; remove padding
+    */ 
 
     // restore caller registers
     write_wrapper(write!(file, "pop %r9\n"));
@@ -349,7 +379,7 @@ fn process_statement(tree: ASTTree, file: &File, mut stack_ind: i32,
 
             ASTTree::Compound(block_list) => (stack_ind, var_map) = 
                 process_compound(block_list, file, stack_ind, var_map, 
-                    label_counter, c_label_opt, b_label_opt, fn_validator),
+                    label_counter, c_label_opt, b_label_opt, fn_validator, None),
 
             ASTTree::NullExp => (),
 
@@ -541,10 +571,17 @@ fn process_do(body: Box<ASTTree>, condition: Box<ASTTree>, mut file: &File,
 fn process_compound(block_list: Vec<Box<ASTTree>>, mut file: &File, 
     mut stack_ind: i32, mut var_map: HashMap<String, VarType>, 
     label_counter: &mut i32, c_label_opt: Option<String>, 
-    b_label_opt: Option<String>, fn_validator: &HashMap<String, FnType>) 
+    b_label_opt: Option<String>, fn_validator: &HashMap<String, FnType>,
+    curr_scope_opt: Option<HashSet<String>>) 
     -> (i32, HashMap<String, VarType>) {
 
-    let mut curr_scope = HashSet::new();
+    let mut curr_scope;
+
+    // Since function arguments count as a declaration in the body compound
+    match curr_scope_opt {
+        None => curr_scope = HashSet::new(),
+        Some(inner) => curr_scope = inner,
+    };
 
     for block in block_list {
         (stack_ind, var_map, curr_scope) = process_block(*block, &file, 

@@ -2,6 +2,7 @@ use std::vec::Vec;
 use std::option::Option;
 
 #[derive(PartialEq)]
+#[derive(Clone)]
 pub enum Token {
     TOpenBrace,
     TCloseBrace,
@@ -56,8 +57,13 @@ pub enum LexerFlag {
 }
 
 pub enum ASTTree {
-    Program(Box<ASTTree>),
-    Function(String, Token, Vec<Box<ASTTree>>),
+    Program(Vec<Box<ASTTree>>),
+    // Function declarations
+    // Function(function name, list of arg names, func body)
+    Function(String, Vec<String>, Option<Box<ASTTree>>),
+    // Function calls
+    // FuncCall(function name, list of expressions for args)
+    FuncCall(String, Vec<Box<ASTTree>>),
     Constant(i64),
     Return(Box<ASTTree>),
     Statement(Box<ASTTree>),
@@ -87,4 +93,15 @@ pub enum ASTTree {
     Break,
     Continue,
     NullExp,
+}
+
+#[derive(Clone)]
+pub enum VarType {
+    Reg(String),
+    Stk(i32),
+}
+
+pub enum FnType {
+    Defn(usize),
+    Decl(usize)
 }

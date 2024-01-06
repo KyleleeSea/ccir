@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use super::types::Token;
 use super::types::ASTTree;
 
@@ -50,19 +52,29 @@ pub fn print_tkn_vec(tkn_stack: &mut Vec<Token>) {
 
 pub fn print_ast(tree: ASTTree) {
     match tree {
-        ASTTree::Program(child) => {
-            print_ast(*child);
+        ASTTree::Program(childlist) => {
+            for prog in childlist {
+                print_ast(*prog);
+            }
         },
-        ASTTree::Function(func_id, func_type, children) => {
+        ASTTree::Function(func_id, func_args, children) => {
             print!("function: {} ", func_id);
-            if func_type == Token::TInt {
-                println!("int ");
+
+            for varname in func_args {
+                print!("arg: {} ", varname);
             }
 
             for child in children {
                 print_ast(*child);
             }
         },
+        ASTTree::FuncCall(func_id, exp_list) => {
+            print!("func call: {} ", func_id);
+
+            for child in exp_list {
+                print_ast(*child);
+            }
+        }
         ASTTree::Constant(cnst) => {
             println!("const: {} ", cnst)
         },

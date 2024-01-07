@@ -57,6 +57,7 @@ pub enum LexerFlag {
 }
 
 pub enum ASTTree {
+    // Return(list (function | declaration))
     Program(Vec<Box<ASTTree>>),
     // Function declarations
     // Function(function name, list of arg names, func body)
@@ -65,13 +66,22 @@ pub enum ASTTree {
     // FuncCall(function name, list of expressions for args)
     FuncCall(String, Vec<Box<ASTTree>>),
     Constant(i64),
+    // Return(exp)
     Return(Box<ASTTree>),
+    // Statement(Inner), Inner can be: Return, Conditional, For, ForDecl, While, 
+    // Do, Break, Continue, NullExp
     Statement(Box<ASTTree>),
+    // UnaryOp(Token, Exp)
     UnaryOp(Token, Box<ASTTree>),
+    // BinaryOp(Left Exp, Token, Right Exp)
     BinaryOp(Box<ASTTree>, Token, Box<ASTTree>),
+    // Declare(id, Exp option)
     Declare(String, Option<Box<ASTTree>>),
+    // Var(id)
     Var(String),
+    // Assign(id, Exp)
     Assign(String, Box<ASTTree>),
+    // BlockItem(Statement | Declaration)
     BlockItem(Box<ASTTree>),
     // Conditional(exp (condition), statement (if), statement option (else))
     Conditional(Box<ASTTree>, Box<ASTTree>, Option<Box<ASTTree>>),

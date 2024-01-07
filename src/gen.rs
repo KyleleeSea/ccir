@@ -1,17 +1,25 @@
 use std::fs::OpenOptions;
 use std::fs::File;
 use std::io::Write;
+
 use super::types::ASTTree;
 use super::types::Token;
 use super::types::VarType;
 use super::types::FnType;
 use super::types::GlobalType;
+
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+// SMALL HELPERS
+/*
+    Function prologue, saves callee saved registers according to cdecl
+    calling convention
+*/
 fn write_prologue(mut file: &File) {
     write_wrapper(write!(file, "\tpush \t%rbp\n"));
     write_wrapper(write!(file, "\tmovq \t%rsp, %rbp\n"));
@@ -22,6 +30,10 @@ fn write_prologue(mut file: &File) {
     // rbx also callee saved, not saving because we don't use rbx anywhere
 }
 
+/*
+    Function epilogue, resores callee saved registers according to cdecl
+    calling convention
+*/
 fn write_epilogue(mut file: &File) {
     write_wrapper(write!(file, "\tpop \t%r15\n"));
     write_wrapper(write!(file, "\tpop \t%r14\n"));
@@ -61,6 +73,9 @@ fn ind_to_arg_register(ind: usize) -> String {
     }
 }
 
+/*
+    Traverse abstract syntax tree to generate assembly code
+*/
 pub fn generate(tree: ASTTree) {
     if Path::new("assembly.s").exists() {
       fs::remove_file("assembly.s").unwrap();
@@ -72,22 +87,25 @@ pub fn generate(tree: ASTTree) {
         .open("assembly.s")
         .unwrap();
 
-    let mut label_counter : i32 = 0;
     let mut fn_validator : HashMap<String, FnType> = HashMap::new();    
     let mut globals_validator : HashMap<String, GlobalType> = HashMap::new();
+    let mut var_map = HashMap::new();
+
     let mut fn_names : HashSet<String> = HashSet::new();
     let mut global_names : HashSet<String> = HashSet::new();    
-    // 5 = number of args we push in prologue
-    let stack_ind : i32 = -8 * 5;
-    let mut var_map = HashMap::new();
-    
+
+    let num_pushed_in_prologue = 5;
+    let stack_ind : i32 = -8 * num_pushed_in_prologue;
+    let mut label_counter : i32 = 0;
+
     match tree {
         ASTTree::Program(children) => {
+            // Generate code for each function and global variable declaration
             for child in children {
                 match *child {
                     ASTTree::Function(id, args, bodyopt) => {
                         let num_args_curr = args.len();
-                        // Validation start
+                        // Function validation start
                         match fn_validator.get(&id) {
                             None => {
                                 match bodyopt {
@@ -135,7 +153,7 @@ pub fn generate(tree: ASTTree) {
 
                         fn_names.insert(id.clone());
 
-                        // Validation end
+                        // Function validation end
 
                         process_function(id, args, bodyopt, &file, stack_ind,
                             var_map.clone(), &mut label_counter, &fn_validator);
@@ -160,13 +178,14 @@ pub fn generate(tree: ASTTree) {
         _ => invalid_match("generate"),
     }
 
-    // Post-processing, put all uninitialized globals in common
+    // Post-processing, put all uninitialized globals in common (macOS standard)
     for (id, state) in globals_validator {
         if state == GlobalType::Decl {
             write_wrapper(write!(file, "\t.comm _{},4,2\n",id));
         }
     }
 
+    // Use gcc to convert the assembly into object code
     Command::new("gcc")
     .arg("assembly.s")
     .arg("-o")
@@ -175,7 +194,7 @@ pub fn generate(tree: ASTTree) {
     .expect("Failed to execute command");
 }
 
-// Callee
+// Treat this as the "callee" code in the calling convention
 fn process_function(id: String, args: Vec<String>, bodyopt: Option<Box<ASTTree>>, 
     mut file: &File, mut stack_ind: i32, 
     mut var_map: HashMap<String, VarType>, label_counter: &mut i32, 
@@ -203,13 +222,16 @@ fn process_function(id: String, args: Vec<String>, bodyopt: Option<Box<ASTTree>>
 
             // add arguments to var_map
             for (ind, elt) in args.iter().enumerate() {
+                // First six arguments go into registers
                 if ind <= 5 {
                     var_map.insert(elt.to_string(), VarType::Reg(String::from(
                         ind_to_arg_register(ind))));
                     curr_scope.insert(elt.to_string());
                 }
+                // Arguments 7+ go onto stack
                 else {
                     var_map.insert(elt.to_string(), VarType::Stk(param_offset));
+                    // +8 since the variable will be above EBP (recall stack grows down)
                     param_offset = param_offset+8;
                     curr_scope.insert(elt.to_string());
                 }
@@ -225,7 +247,7 @@ fn process_function(id: String, args: Vec<String>, bodyopt: Option<Box<ASTTree>>
     }
 }
 
-// Caller
+// Treat this as the "caller" code in the calling convention
 fn process_func_call(id: String, mut args: Vec<Box<ASTTree>>, mut file: &File, 
     mut stack_ind: i32, var_map: HashMap<String, VarType>, 
     label_counter: &mut i32, fn_validator: &HashMap<String, FnType>) {
@@ -299,6 +321,7 @@ fn process_func_call(id: String, mut args: Vec<Box<ASTTree>>, mut file: &File,
         let mut stk_args = args.split_off(num_saved_u);
         stk_args.reverse();
 
+        // All register arguments
         for arg in args {
             process_expression(*arg, file, stack_ind, var_map.clone(), 
             label_counter, fn_validator);
@@ -309,6 +332,7 @@ fn process_func_call(id: String, mut args: Vec<Box<ASTTree>>, mut file: &File,
             ind = ind + 1;
         }
 
+        // All stack arguments
         let stack_arg_bytes = 8 * stk_args.len();
         for arg in stk_args {
             process_expression(*arg, file, stack_ind, var_map.clone(), 
@@ -392,8 +416,6 @@ fn process_statement(tree: ASTTree, file: &File, mut stack_ind: i32,
 
             ASTTree::Break => process_break(b_label_opt, file),
 
-            // might need to set stack_ind and var_map in fors, havent thought abt it 
-            // might not need to though idk 
             ASTTree::For(initopt, control, postopt, body) => process_for(initopt, 
                 control, postopt, body, file, stack_ind, var_map.clone(), 
                 label_counter, fn_validator),
@@ -1036,9 +1058,7 @@ fn process_global_declare(id: String, inner_child_opt: Option<Box<ASTTree>>,
                 },
                 _ => panic!("Non-constant expression found in global var defn!")
             }
-            
         }
     }
-
     return (var_map, globals_validator)
 }

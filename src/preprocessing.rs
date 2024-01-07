@@ -2,6 +2,8 @@ use super::types::ASTTree;
 use super::types::Token;
 use std::vec::Vec;
 
+/* Converts all non-variable expressions for global declarations into a
+ constant at compile time */
 pub fn eval_global_constants(tree: ASTTree) -> ASTTree {
     match tree {
         ASTTree::Program(children) => {
@@ -11,6 +13,7 @@ pub fn eval_global_constants(tree: ASTTree) -> ASTTree {
                 match *child {
                     ASTTree::Declare(id, body_opt) => {
                         match body_opt {
+                            // Declare with initialization
                             Some(body) => {
                                 let new_constant : i64 = eval_global_exp(*body);
                                 let node = Box::new(ASTTree::Declare
@@ -18,6 +21,7 @@ pub fn eval_global_constants(tree: ASTTree) -> ASTTree {
                                         (new_constant)))));
                                 updated_children.push(node);
                             },
+                            // Declare without initialization
                             None => {
                                 let node = Box::new(ASTTree::Declare(id.clone(),
                             None));
@@ -30,6 +34,7 @@ pub fn eval_global_constants(tree: ASTTree) -> ASTTree {
             }
 
         return ASTTree::Program(updated_children);
+        
         },
         _ => panic!("non program found in preprocessing"),
     }

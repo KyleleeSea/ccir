@@ -24,14 +24,11 @@ pub fn lexer() -> Vec<Token> {
     // High level idea: Iterate over all the characters, tracking whether
     // we've been accumulating a multicharacter intLit or identifier
     // We push the intLit and identifiers lazily once we encounter a character
-    // that's not an intLit of identifier. We know we must end on a non intLit
-    // or identifier character because the c program must end with }
-    // if the above assumption doesn't hold we can do one last check at the
-    // end of the for loop
+    // that's not an intLit of identifier.
 
     // Currently does not support comments
     for c in chars {
-        // Handle compounds like &&, ||, >>, etc
+        // Flag handles compounds like &&, ||, >>, etc
         match flag {
             LexerFlag::NoFlag => (),
             LexerFlag::Amp => if c == '&' {
@@ -121,7 +118,6 @@ pub fn lexer() -> Vec<Token> {
                     id_acc = None;
                 }
             }
-        
 
         match c {
             '{' => tkn_stack.push(Token::TOpenBrace),
@@ -149,7 +145,7 @@ pub fn lexer() -> Vec<Token> {
             '\t' | '\n' | '\r' | ' ' => continue,
             '0' ..= '9' => 
                 {
-                    // Must do this match as an identifier could be name3
+                    // Must do this match as an identifier could have an int in it
                     match id_acc {
                         None => {
                             match intlit_acc {

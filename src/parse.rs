@@ -7,6 +7,17 @@ use super::types::ASTTree;
 use super::debug;
 
 /*
+    Semantic analysis to convert stack of tokens into an Abstract Syntax Tree
+*/
+pub fn parser(tkn_stack: Vec<Token>) -> ASTTree {
+    let mut tokens: VecDeque<Token> = VecDeque::from_iter(tkn_stack);
+    let tree = parse_program(&mut tokens);
+
+    return tree;
+}
+
+// SMALL HELPERS
+/*
     Pops the top token from the stack, raises fail if it doesn't match
     target, emitting the err string
 */
@@ -16,6 +27,9 @@ fn chk_token(tokens: &mut VecDeque<Token>, target: Token, err: &str) {
     }
 }
 
+/*
+    Returns true if token is a unary operator, false otherwise
+*/
 fn is_un_op(tkn: &Token) -> bool {
     match tkn {
         Token::TNeg | Token::TBitComp | Token::TLNeg => true,
@@ -23,13 +37,20 @@ fn is_un_op(tkn: &Token) -> bool {
     }
 }
 
+/*
+    Returns true if operator is used in "term" in grammar
+*/
 fn is_bin_term_op(tkn: Option<&Token>) -> bool {
     match tkn {
-        Some(inner) => *inner == Token::TMultiply || *inner == Token::TDivide || *inner == Token::TMod,
+        Some(inner) => *inner == Token::TMultiply || *inner == Token::TDivide || 
+        *inner == Token::TMod,
         _ => false,
     }
 }
 
+/*
+    Precondition: token must be of type Some(Token::TIdentifier(id))
+*/
 fn extract_id(token: Option<Token>) -> String {
     match token {
         Some(Token::TIdentifier(id)) => return id,
@@ -37,13 +58,150 @@ fn extract_id(token: Option<Token>) -> String {
     }
 }
 
+/*
+    Precondition: token.get(0) == "for", token.get(1) == "("
+    Returns true if next sequence of tokens corresponds to a for loop that
+    uses a declaration in its initializer
+*/
 fn is_for_decl(tokens: &mut VecDeque<Token>) -> bool {
-    // Assumed at this point tokens.get(0) is "for", tokens.get(1) is "("
     match tokens.get(2) {
         Some(Token::TInt) => return true,
         _ => return false,
     };
 }
+
+// PRIMARY ROUTINES
+
+fn parse_program(tokens: &mut VecDeque<Token>) -> ASTTree {
+    let mut prog_list: Vec<Box<ASTTree>> = Vec::new();
+    let mut func_decl;
+    let mut var_decl;
+    while !tokens.is_empty() {
+        // assumes token.get(0) is Token::TInt, token.get(1) is Token::TIdentifier
+        match tokens.get(2) {
+            Some(&Token::TOpenParen) => {
+                func_decl = parse_function(tokens);
+                prog_list.push(Box::new(func_decl));
+            },
+            _ => {
+                var_decl = parse_declare(tokens);
+                prog_list.push(Box::new(var_decl));
+            },
+        }
+    }
+    return ASTTree::Program(prog_list);
+}
+
+/*
+    Grammar:
+    <function> ::= "int" <id> "(" [ "int" <id> { "," "int" <id> } ] ")" ( "{" { <block-item> } "}" | ";" )
+*/
+fn parse_function(tokens: &mut VecDeque<Token>) -> ASTTree {
+    if tokens.pop_front() != Some(Token::TInt) {
+        panic!("Parse function type fail")
+    }
+
+    let func_id;
+    match tokens.pop_front() {
+        Some(Token::TIdentifier(tkn)) => func_id = tkn,
+        _ => panic!("Parse function id fail"),
+    }
+
+    // Parens 
+    chk_token(tokens, Token::TOpenParen, "parse_function, open paren");
+
+    let next = tokens.get(0);
+
+    if next == Some(&Token::TCloseParen) {
+        tokens.pop_front();
+
+        match tokens.get(0) {
+            // Case: "int" <id" "(" ")" ";"
+            Some(&Token::TSemicolon) => {
+                tokens.pop_front();
+                return ASTTree::Function(func_id, Vec::new(), None);
+            }
+            // Case: "int" <id> "(" ")" "{" { <block-item> } "}"
+            Some(&Token::TOpenBrace) => {
+                let func_body = parse_compound(tokens);
+                return ASTTree::Function(func_id, Vec::new(), Some(Box::new(func_body)));
+            },
+            _ => panic!("parse_function fail"),
+        };
+    } else {
+        let mut id_list: Vec<String> = Vec::new();
+
+        // Case: "int" <id> "(" [ "int" <id> { "," "int" <id> } ] ")" ( "{" { <block-item> } "}" | ";" )
+        while tokens.get(0) == Some(&Token::TInt) {
+            tokens.pop_front();
+            match tokens.pop_front() {
+                Some(Token::TIdentifier(arg_id)) => id_list.push(arg_id),
+                _ => panic!("parse_function args id fail"),
+            };
+
+            let next_tkn = tokens.pop_front();
+
+            if next_tkn != Some(Token::TCloseParen) && next_tkn != Some(Token::TComma) {
+                panic!("parse_function parse args fail")
+            }
+            if next_tkn == Some(Token::TCloseParen) {
+                break
+            }
+        }
+        
+        // Could possibly end with just semicolon
+        if tokens.get(0) == Some(&Token::TSemicolon) {
+            tokens.pop_front();
+            return ASTTree::Function(func_id, id_list, None);
+        } else {
+            // Parse rest of function body
+            let func_body = parse_compound(tokens);
+            return ASTTree::Function(func_id, id_list, Some(Box::new(func_body)));
+        }
+    }
+}
+
+/*
+    Grammar:
+    "{" { <block-item> } "}
+*/
+fn parse_compound(tokens: &mut VecDeque<Token>) -> ASTTree {
+    chk_token(tokens, Token::TOpenBrace, "parse_compound, open brace");
+
+    let mut block_item_list = Vec::new();
+
+    let mut next = tokens.get(0);
+
+    while next != Some(&Token::TCloseBrace) {
+        block_item_list.push(Box::new(parse_block_item(tokens)));
+        next = tokens.get(0);
+    }
+
+    // Remove close brace
+    tokens.pop_front();
+
+    return ASTTree::Compound(block_item_list);
+}
+
+/*
+    Grammar:
+    <block-item> ::= <statement> | <declaration>
+*/
+fn parse_block_item(tokens: &mut VecDeque<Token>) -> ASTTree {
+    match tokens.get(0) {
+        // <block-item> ::= <declaration>
+        Some(Token::TInt) => {
+            let decl = parse_declare(tokens);
+            return ASTTree::BlockItem(Box::new(decl));
+        },
+        // <block-item> ::= <statement>
+        _ => {
+            let statement = parse_statement(tokens);
+            return ASTTree::BlockItem(Box::new(statement));
+        }
+    }
+}
+
 
 /*
     Grammar:
@@ -187,8 +345,6 @@ fn parse_for_decl(tokens: &mut VecDeque<Token>) -> ASTTree {
     match tokens.get(0) {
         Some(Token::TSemicolon) => {
             tokens.pop_front();
-            // not sure if this is correct / complies with code gen format
-            // may need to wrap the constant in something
             controlling = Box::new(ASTTree::Constant(1));
         },
         _ => {
@@ -255,8 +411,6 @@ fn parse_for(tokens: &mut VecDeque<Token>) -> ASTTree {
     match tokens.get(0) {
         Some(Token::TCloseParen) => {
             tokens.pop_front();
-            // not sure if this is correct / complies with code gen format
-            // may need to wrap the constant in something
             postop = None;
         },
         _ => {
@@ -270,30 +424,7 @@ fn parse_for(tokens: &mut VecDeque<Token>) -> ASTTree {
     return ASTTree::For(init, controlling, postop, body);
 }
 
-
-/*
-    Grammar:
-    "{" { <block-item> } "}
-*/
-fn parse_compound(tokens: &mut VecDeque<Token>) -> ASTTree {
-    chk_token(tokens, Token::TOpenBrace, "parse_compound, open brace");
-
-    let mut block_item_list = Vec::new();
-
-    let mut next = tokens.get(0);
-
-    while next != Some(&Token::TCloseBrace) {
-        block_item_list.push(Box::new(parse_block_item(tokens)));
-        next = tokens.get(0);
-    }
-
-    // Remove close brace
-    tokens.pop_front();
-
-    return ASTTree::Compound(block_item_list);
-}
-
-// "if" "(" <exp> ")" <statement> [ "else" <statement> ]
+// Grammar: "if" "(" <exp> ")" <statement> [ "else" <statement> ]
 fn parse_if(tokens: &mut VecDeque<Token>) -> ASTTree {
     chk_token(tokens, Token::TIf, "parse_if, if");
     chk_token(tokens, Token::TOpenParen, "parse_if, open paren");
@@ -318,6 +449,7 @@ fn parse_if(tokens: &mut VecDeque<Token>) -> ASTTree {
     };
 }
 
+// Grammar: "return" <exp> ";"
 fn parse_return(tokens: &mut VecDeque<Token>) -> ASTTree {
     tokens.pop_front();
     let exp = parse_exp(tokens);
@@ -698,7 +830,6 @@ pub fn parse_factor(tokens: &mut VecDeque<Token>) -> ASTTree {
     }
 }
 
-
 /*
     Grammar:
     <function-call> ::= id "(" [ <exp> { "," <exp> } ] ")"
@@ -732,119 +863,4 @@ pub fn parse_function_call(tokens: &mut VecDeque<Token>) -> ASTTree {
         panic!("parse_function_call close parens fail");
     }
     return ASTTree::FuncCall(func_id, exp_list);
-}
-
-/*
-    Grammar:
-    <block-item> ::= <statement> | <declaration>
-*/
-fn parse_block_item(tokens: &mut VecDeque<Token>) -> ASTTree {
-    match tokens.get(0) {
-        // <block-item> ::= <declaration>
-        Some(Token::TInt) => {
-            let decl = parse_declare(tokens);
-            return ASTTree::BlockItem(Box::new(decl));
-        },
-        // <block-item> ::= <statement>
-        _ => {
-            let statement = parse_statement(tokens);
-            return ASTTree::BlockItem(Box::new(statement));
-        }
-    }
-}
-
-/*
-    Grammar:
-    <function> ::= "int" <id> "(" [ "int" <id> { "," "int" <id> } ] ")" ( "{" { <block-item> } "}" | ";" )
-*/
-pub fn parse_function(tokens: &mut VecDeque<Token>) -> ASTTree {
-    if tokens.pop_front() != Some(Token::TInt) {
-        panic!("Parse function type fail")
-    }
-
-    let func_id;
-    match tokens.pop_front() {
-        Some(Token::TIdentifier(tkn)) => func_id = tkn,
-        _ => panic!("Parse function id fail"),
-    }
-
-    // Parens 
-    chk_token(tokens, Token::TOpenParen, "parse_function, open paren");
-
-    let next = tokens.get(0);
-
-    if next == Some(&Token::TCloseParen) {
-        tokens.pop_front();
-
-        match tokens.get(0) {
-            // Case: "int" <id" "(" ")" ";"
-            Some(&Token::TSemicolon) => {
-                tokens.pop_front();
-                return ASTTree::Function(func_id, Vec::new(), None);
-            }
-            // Case: "int" <id> "(" ")" "{" { <block-item> } "}"
-            Some(&Token::TOpenBrace) => {
-                let func_body = parse_compound(tokens);
-                return ASTTree::Function(func_id, Vec::new(), Some(Box::new(func_body)));
-            },
-            _ => panic!("parse_function fail"),
-        };
-    } else {
-        let mut id_list: Vec<String> = Vec::new();
-
-        // Case: "int" <id> "(" [ "int" <id> { "," "int" <id> } ] ")" ( "{" { <block-item> } "}" | ";" )
-        while tokens.get(0) == Some(&Token::TInt) {
-            tokens.pop_front();
-            match tokens.pop_front() {
-                Some(Token::TIdentifier(arg_id)) => id_list.push(arg_id),
-                _ => panic!("parse_function args id fail"),
-            };
-
-            let next_tkn = tokens.pop_front();
-
-            if next_tkn != Some(Token::TCloseParen) && next_tkn != Some(Token::TComma) {
-                panic!("parse_function parse args fail")
-            }
-            if next_tkn == Some(Token::TCloseParen) {
-                break
-            }
-        }
-        
-        // Could possibly end with just semicolon
-        if tokens.get(0) == Some(&Token::TSemicolon) {
-            tokens.pop_front();
-            return ASTTree::Function(func_id, id_list, None);
-        } else {
-            // Parse rest of function body
-            let func_body = parse_compound(tokens);
-            return ASTTree::Function(func_id, id_list, Some(Box::new(func_body)));
-        }
-    }
-}
-
-pub fn parse_program(tokens: &mut VecDeque<Token>) -> ASTTree {
-    let mut prog_list: Vec<Box<ASTTree>> = Vec::new();
-    let mut func_decl;
-    let mut var_decl;
-    while !tokens.is_empty() {
-        // assumes 0 is int, 1 is identifier
-        match tokens.get(2) {
-            Some(&Token::TOpenParen) => {
-                func_decl = parse_function(tokens);
-                prog_list.push(Box::new(func_decl));
-            },
-            _ => {
-                var_decl = parse_declare(tokens);
-                prog_list.push(Box::new(var_decl));
-            },
-        }
-    }
-    return ASTTree::Program(prog_list);
-}
-
-pub fn parser(tkn_stack: Vec<Token>) -> ASTTree {
-    let mut tokens: VecDeque<Token> = VecDeque::from_iter(tkn_stack);
-    let tree = parse_program(&mut tokens);
-
-    return tree;
 }

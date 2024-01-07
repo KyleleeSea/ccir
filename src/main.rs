@@ -10,6 +10,6 @@ fn main() {
     // debug::print_tkn_vec(&mut tkn_stack);
     let mut tree = parse::parser(tkn_stack);
     tree = preprocessing::eval_global_constants(tree);
-    debug::print_ast(tree);
-    // gen::generate(tree);
+    // debug::print_ast(tree);
+    gen::generate(tree);
 }

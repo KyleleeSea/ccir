@@ -78,7 +78,7 @@ pub fn generate(tree: ASTTree) {
     let mut fn_names : HashSet<String> = HashSet::new();
     let mut global_names : HashSet<String> = HashSet::new();    
     // 5 = number of args we push in prologue
-    let mut stack_ind : i32 = -8 * 5;
+    let stack_ind : i32 = -8 * 5;
     let mut var_map = HashMap::new();
     
     match tree {
@@ -227,7 +227,7 @@ fn process_function(id: String, args: Vec<String>, bodyopt: Option<Box<ASTTree>>
 
 // Caller
 fn process_func_call(id: String, mut args: Vec<Box<ASTTree>>, mut file: &File, 
-    mut stack_ind: i32, mut var_map: HashMap<String, VarType>, 
+    mut stack_ind: i32, var_map: HashMap<String, VarType>, 
     label_counter: &mut i32, fn_validator: &HashMap<String, FnType>) {
     // validate consistent number of arguments
     match fn_validator.get(&id) {
@@ -1003,7 +1003,7 @@ fn write_global(id: String, mut file: &File, x: i64) {
 }
 
 fn process_global_declare(id: String, inner_child_opt: Option<Box<ASTTree>>,
-    mut file: &File, mut var_map: HashMap<String, VarType>, mut 
+    file: &File, mut var_map: HashMap<String, VarType>, mut 
     globals_validator: HashMap<String, GlobalType>)
     -> (HashMap<String, VarType>, HashMap<String, GlobalType>) {
 

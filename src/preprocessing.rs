@@ -2,7 +2,7 @@ use super::types::ASTTree;
 use super::types::Token;
 use std::vec::Vec;
 
-pub fn eval_global_constants(mut tree: ASTTree) -> ASTTree {
+pub fn eval_global_constants(tree: ASTTree) -> ASTTree {
     match tree {
         ASTTree::Program(children) => {
             let mut updated_children : Vec<Box<ASTTree>> = Vec::new();
@@ -12,8 +12,7 @@ pub fn eval_global_constants(mut tree: ASTTree) -> ASTTree {
                     ASTTree::Declare(id, body_opt) => {
                         match body_opt {
                             Some(body) => {
-                                let mut new_constant : i64 = 0;
-                                new_constant = eval_global_exp(*body);
+                                let new_constant : i64 = eval_global_exp(*body);
                                 let node = Box::new(ASTTree::Declare
                                     (id.clone(), Some(Box::new(ASTTree::Constant
                                         (new_constant)))));
@@ -25,26 +24,6 @@ pub fn eval_global_constants(mut tree: ASTTree) -> ASTTree {
                     _ => updated_children.push(child),
                 }
             }
-
-            // for (index, child) in children.iter().enumerate() {
-            //     match *child {
-            //         ASTTree::Declare(id, body_opt) => {
-            //             match body_opt {
-            //                 Some(body) => {
-            //                     let mut new_constant : i64 = 0;
-            //                     new_constant = eval_global_exp(*body);
-            //                     children[index] = Box::new(ASTTree::Declare(
-            //                         id.clone(), Some(Box::new(ASTTree::Constant
-            //                             (new_constant)))
-            //                     ));
-            //                 },
-            //                 None => ()
-            //             }
-            //         },
-            //         _ => (),
-            //     }
-            // }
-        // updated_children.reverse();
 
         return ASTTree::Program(updated_children);
         },
@@ -76,7 +55,15 @@ fn eval_global_exp(tree: ASTTree) -> i64 {
             let child_value = eval_global_exp(*child);
             match tkn {
                 Token::TNeg => return -child_value,
-                Token::TLNeg => return !child_value,
+                Token::TLNeg => {
+                    if child_value == 0 {
+                        return 1;
+                    }
+                    else {
+                        return 0;
+                    }
+                },
+                Token::TBitComp => return !child_value,
                 _ => panic!("unsupported unary op found in global expression"),
             }
 

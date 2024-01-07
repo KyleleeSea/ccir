@@ -99,9 +99,16 @@ pub enum ASTTree {
 pub enum VarType {
     Reg(String),
     Stk(i32),
+    Global(String),
 }
 
 pub enum FnType {
     Defn(usize),
-    Decl(usize)
+    Decl(usize),
+}
+
+#[derive(PartialEq)]
+pub enum GlobalType {
+    Defn,
+    Decl,
 }

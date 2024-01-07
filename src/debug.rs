@@ -1,5 +1,3 @@
-use std::collections::VecDeque;
-
 use super::types::Token;
 use super::types::ASTTree;
 
@@ -57,15 +55,19 @@ pub fn print_ast(tree: ASTTree) {
                 print_ast(*prog);
             }
         },
-        ASTTree::Function(func_id, func_args, children) => {
+        ASTTree::Function(func_id, func_args, children_opt) => {
             print!("function: {} ", func_id);
 
             for varname in func_args {
                 print!("arg: {} ", varname);
             }
 
-            for child in children {
-                print_ast(*child);
+            match children_opt {
+                None => print!("function declaration, no body\n"),
+                Some(body) => {
+                    print!("body: ");
+                    print_ast(*body);
+                }
             }
         },
         ASTTree::FuncCall(func_id, exp_list) => {

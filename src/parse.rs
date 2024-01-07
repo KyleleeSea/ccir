@@ -823,13 +823,23 @@ pub fn parse_function(tokens: &mut VecDeque<Token>) -> ASTTree {
 }
 
 pub fn parse_program(tokens: &mut VecDeque<Token>) -> ASTTree {
-    let mut func_list: Vec<Box<ASTTree>> = Vec::new();
+    let mut prog_list: Vec<Box<ASTTree>> = Vec::new();
     let mut func_decl;
+    let mut var_decl;
     while !tokens.is_empty() {
-        func_decl = parse_function(tokens);
-        func_list.push(Box::new(func_decl));
+        // assumes 0 is int, 1 is identifier
+        match tokens.get(2) {
+            Some(&Token::TOpenParen) => {
+                func_decl = parse_function(tokens);
+                prog_list.push(Box::new(func_decl));
+            },
+            _ => {
+                var_decl = parse_declare(tokens);
+                prog_list.push(Box::new(var_decl));
+            },
+        }
     }
-    return ASTTree::Program(func_list);
+    return ASTTree::Program(prog_list);
 }
 
 pub fn parser(tkn_stack: Vec<Token>) -> ASTTree {

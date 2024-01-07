@@ -18,7 +18,11 @@ pub fn eval_global_constants(tree: ASTTree) -> ASTTree {
                                         (new_constant)))));
                                 updated_children.push(node);
                             },
-                            None => ()
+                            None => {
+                                let node = Box::new(ASTTree::Declare(id.clone(),
+                            None));
+                                updated_children.push(node);
+                            }
                         }
                     },
                     _ => updated_children.push(child),

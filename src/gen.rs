@@ -13,22 +13,22 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 fn write_prologue(mut file: &File) {
-    write_wrapper(write!(file, "push %rbp\n"));
-    write_wrapper(write!(file, "movq %rsp, %rbp\n"));
-    write_wrapper(write!(file, "push %r12\n"));
-    write_wrapper(write!(file, "push %r13\n"));
-    write_wrapper(write!(file, "push %r14\n"));
-    write_wrapper(write!(file, "push %r15\n"));
+    write_wrapper(write!(file, "\tpush \t%rbp\n"));
+    write_wrapper(write!(file, "\tmovq \t%rsp, %rbp\n"));
+    write_wrapper(write!(file, "\tpush \t%r12\n"));
+    write_wrapper(write!(file, "\tpush \t%r13\n"));
+    write_wrapper(write!(file, "\tpush \t%r14\n"));
+    write_wrapper(write!(file, "\tpush \t%r15\n"));
     // rbx also callee saved, not saving because we don't use rbx anywhere
 }
 
 fn write_epilogue(mut file: &File) {
-    write_wrapper(write!(file, "pop %r15\n"));
-    write_wrapper(write!(file, "pop %r14\n"));
-    write_wrapper(write!(file, "pop %r13\n"));
-    write_wrapper(write!(file, "pop %r12\n"));
-    write_wrapper(write!(file, "movq %rbp, %rsp\n"));
-    write_wrapper(write!(file, "pop %rbp\n"));
+    write_wrapper(write!(file, "\tpop \t%r15\n"));
+    write_wrapper(write!(file, "\tpop \t%r14\n"));
+    write_wrapper(write!(file, "\tpop \t%r13\n"));
+    write_wrapper(write!(file, "\tpop \t%r12\n"));
+    write_wrapper(write!(file, "\tmovq \t%rbp, %rsp\n"));
+    write_wrapper(write!(file, "\tpop \t%rbp\n"));
 }
 
 fn write_wrapper(res: Result<(), std::io::Error>) {
@@ -163,7 +163,7 @@ pub fn generate(tree: ASTTree) {
     // Post-processing, put all uninitialized globals in common
     for (id, state) in globals_validator {
         if state == GlobalType::Decl {
-            write_wrapper(write!(file, ".comm _{},4,2\n",id));
+            write_wrapper(write!(file, "\t.comm _{},4,2\n",id));
         }
     }
 
@@ -186,7 +186,7 @@ fn process_function(id: String, args: Vec<String>, bodyopt: Option<Box<ASTTree>>
         None => (),
         // Case 2) Function definition
         Some(body) => {
-            write_wrapper(write!(file, ".globl _{}\n", id));
+            write_wrapper(write!(file, "\t.globl _{}\n", id));
             write_wrapper(write!(file, "_{}:\n", id));
             // write_prologue takes care of callee saving
             write_prologue(&file);
@@ -249,30 +249,31 @@ fn process_func_call(id: String, mut args: Vec<Box<ASTTree>>, mut file: &File,
     let num_saved_u : usize = 6;
     let num_saved_i : i32 = 6;
 
-    write_wrapper(write!(file, "push %rdi\n"));
-    write_wrapper(write!(file, "push %rsi\n"));
-    write_wrapper(write!(file, "push %rdx\n"));
-    write_wrapper(write!(file, "push %rcx\n"));
-    write_wrapper(write!(file, "push %r8\n"));
-    write_wrapper(write!(file, "push %r9\n"));
+    write_wrapper(write!(file, "\tpush \t%rdi\n"));
+    write_wrapper(write!(file, "\tpush \t%rsi\n"));
+    write_wrapper(write!(file, "\tpush \t%rdx\n"));
+    write_wrapper(write!(file, "\tpush \t%rcx\n"));
+    write_wrapper(write!(file, "\tpush \t%r8\n"));
+    write_wrapper(write!(file, "\tpush \t%r9\n"));
 
    // Calculate padding to maintain 16 byte alignment on call
-   write_wrapper(write!(file, "movq %rsp, %rax\n"));
+   write_wrapper(write!(file, "\tmovq \t%rsp, %rax\n"));
    if args.len() > num_saved_u {
        // first 6 args already accounted for by automatic push of caller 
        // saved registers
-       write_wrapper(write!(file, "subq ${}, %rax\n", 8*((args.len() - num_saved_u) + 1)));
+       write_wrapper(write!(file, "\tsubq \t${}, %rax\n", 8*((args.len() - 
+       num_saved_u) + 1)));
    }
 
    // zero out rdx which will contain division remainder
-   write_wrapper(write!(file, "xorq %rdx, %rdx\n"));
+   write_wrapper(write!(file, "\txorq \t%rdx, %rdx\n"));
    // 0x20 = 16 in decimal
-   write_wrapper(write!(file, "movq $0x20, %rcx\n"));
+   write_wrapper(write!(file, "\tmovq \t$0x20, %rcx\n"));
    // edx will contain the remainder
-   write_wrapper(write!(file, "idivq %rcx\n"));
+   write_wrapper(write!(file, "\tidivq \t%rcx\n"));
    // pad rsp
-   write_wrapper(write!(file, "subq %rdx, %rsp\n"));
-   write_wrapper(write!(file, "pushq %rdx\n"));
+   write_wrapper(write!(file, "\tsubq \t%rdx, %rsp\n"));
+   write_wrapper(write!(file, "\tpushq \t%rdx\n"));
 
     // +1 is the padding push
     stack_ind = stack_ind - (8 * (num_saved_i+1));
@@ -284,13 +285,13 @@ fn process_func_call(id: String, mut args: Vec<Box<ASTTree>>, mut file: &File,
             process_expression(*arg, file, stack_ind, var_map.clone(), 
             label_counter, fn_validator);
 
-            write_wrapper(write!(file, "movq %rax, %{}\n", 
+            write_wrapper(write!(file, "\tmovq \t%rax, %{}\n", 
                 ind_to_arg_register(ind)));
 
             ind = ind + 1;
         }   
 
-        write_wrapper(write!(file, "call _{}\n", id));
+        write_wrapper(write!(file, "\tcall _{}\n", id));
 
     }
     // Case 2) Some arguments must go on the stack
@@ -302,7 +303,7 @@ fn process_func_call(id: String, mut args: Vec<Box<ASTTree>>, mut file: &File,
             process_expression(*arg, file, stack_ind, var_map.clone(), 
             label_counter, fn_validator);
 
-            write_wrapper(write!(file, "movq %rax, %{}\n", 
+            write_wrapper(write!(file, "\tmovq \t%rax, %{}\n", 
                 ind_to_arg_register(ind)));
             
             ind = ind + 1;
@@ -312,30 +313,30 @@ fn process_func_call(id: String, mut args: Vec<Box<ASTTree>>, mut file: &File,
         for arg in stk_args {
             process_expression(*arg, file, stack_ind, var_map.clone(), 
             label_counter, fn_validator);
-            write_wrapper(write!(file, "pushq %rax\n"));
+            write_wrapper(write!(file, "\tpushq \t%rax\n"));
             stack_ind = stack_ind - 8;
         }
 
-        write_wrapper(write!(file, "call _{}\n", id));
+        write_wrapper(write!(file, "\tcall _{}\n", id));
 
         // Dealloc stack
         if stack_arg_bytes > 0 {
-            write_wrapper(write!(file, "addq ${}, %rsp\n", stack_arg_bytes));
+            write_wrapper(write!(file, "\taddq \t${}, %rsp\n", stack_arg_bytes));
         }
     }
 
     // pop padding
-    write_wrapper(write!(file, "popq %rdx\n"));
+    write_wrapper(write!(file, "\tpopq \t%rdx\n"));
     // remove padding from rsp
-    write_wrapper(write!(file, "addq %rdx, %rsp\n"));
+    write_wrapper(write!(file, "\taddq \t%rdx, %rsp\n"));
 
     // restore caller registers
-    write_wrapper(write!(file, "pop %r9\n"));
-    write_wrapper(write!(file, "pop %r8\n"));
-    write_wrapper(write!(file, "pop %rcx\n"));
-    write_wrapper(write!(file, "pop %rdx\n"));
-    write_wrapper(write!(file, "pop %rsi\n"));
-    write_wrapper(write!(file, "pop %rdi\n"));
+    write_wrapper(write!(file, "\tpop \t%r9\n"));
+    write_wrapper(write!(file, "\tpop \t%r8\n"));
+    write_wrapper(write!(file, "\tpop \t%rcx\n"));
+    write_wrapper(write!(file, "\tpop \t%rdx\n"));
+    write_wrapper(write!(file, "\tpop \t%rsi\n"));
+    write_wrapper(write!(file, "\tpop \t%rdi\n"));
 }
 
 // Process_block responsible for variable scoping
@@ -422,14 +423,14 @@ fn process_statement(tree: ASTTree, file: &File, mut stack_ind: i32,
 fn process_continue(c_label_opt: Option<String>, mut file: &File) {
     match c_label_opt {
         None => panic!("continue called outside of a loop!"),
-        Some(label) => write_wrapper(write!(file, "jmp {}\n", label)),
+        Some(label) => write_wrapper(write!(file, "\tjmp \t{}\n", label)),
     };
 }
 
 fn process_break(b_label_opt: Option<String>, mut file: &File) {
     match b_label_opt {
         None => panic!("break called outside of a loop!"),
-        Some(label) => write_wrapper(write!(file, "jmp {}\n", label)),
+        Some(label) => write_wrapper(write!(file, "\tjmp \t{}\n", label)),
     };
 }
 
@@ -455,8 +456,8 @@ fn process_for(initopt: Option<Box<ASTTree>>, control: Box<ASTTree>,
     process_expression(*control, file, stack_ind, var_map.clone(), 
         label_counter, fn_validator);
     // 3. If condition false, then exit
-    write_wrapper(write!(file, "cmpq $0, %rax\n"));
-    write_wrapper(write!(file, "je {}\n", end_of_loop_label));
+    write_wrapper(write!(file, "\tcmpq \t$0, %rax\n"));
+    write_wrapper(write!(file, "\tje \t{}\n", end_of_loop_label));
 
     // 4. Execute statement
     process_statement(*body, file, stack_ind, 
@@ -472,7 +473,7 @@ fn process_for(initopt: Option<Box<ASTTree>>, control: Box<ASTTree>,
     };
 
     // 6. Jump to step 2
-    write_wrapper(write!(file, "jmp {}\n", guard_label));
+    write_wrapper(write!(file, "\tjmp \t{}\n", guard_label));
 
     write_wrapper(write!(file, "{}:\n", end_of_loop_label));
 }
@@ -496,8 +497,8 @@ fn process_for_decl(decl: Box<ASTTree>, control: Box<ASTTree>,
     process_expression(*control, file, stack_ind, var_map.clone(), 
         label_counter, fn_validator);
     // 3. If condition false, then exit
-    write_wrapper(write!(file, "cmpq $0, %rax\n"));
-    write_wrapper(write!(file, "je {}\n", end_of_loop_label));
+    write_wrapper(write!(file, "\tcmpq \t$0, %rax\n"));
+    write_wrapper(write!(file, "\tje {}\n", end_of_loop_label));
 
     // 4. Execute statement
     process_statement(*body, file, stack_ind, 
@@ -513,12 +514,12 @@ fn process_for_decl(decl: Box<ASTTree>, control: Box<ASTTree>,
     };
 
     // 6. Jump to step 2
-    write_wrapper(write!(file, "jmp {}\n", guard_label));
+    write_wrapper(write!(file, "\tjmp {}\n", guard_label));
 
     write_wrapper(write!(file, "{}:\n", end_of_loop_label));
     // 7. Deallocate variable declared in for loop header
     let bytes_to_dealloc = 8 * curr_scope.len();
-    write_wrapper(write!(file, "addq ${}, %rsp\n", bytes_to_dealloc));
+    write_wrapper(write!(file, "\taddq \t${}, %rsp\n", bytes_to_dealloc));
 
 
 }
@@ -535,14 +536,14 @@ fn process_while(condition: Box<ASTTree>, body: Box<ASTTree>, mut file: &File,
     process_expression(*condition, file, stack_ind, var_map.clone(),
     label_counter, fn_validator);
     // If it is false, exit the loop
-    write_wrapper(write!(file, "cmpq $0, %rax\n"));
-    write_wrapper(write!(file, "je {}\n", end_of_loop_label));
+    write_wrapper(write!(file, "\tcmpq \t$0, %rax\n"));
+    write_wrapper(write!(file, "\tje \t{}\n", end_of_loop_label));
     // Execute statement
     process_statement(*body, file, stack_ind,
         var_map.clone(), label_counter,
     Some(guard_label.clone()), Some(end_of_loop_label.clone()), fn_validator);
     // Jump to the guard label
-    write_wrapper(write!(file, "jmp {}\n", guard_label));
+    write_wrapper(write!(file, "\tjmp \t{}\n", guard_label));
 
     write_wrapper(write!(file, "{}:\n", end_of_loop_label));
 }
@@ -563,10 +564,10 @@ fn process_do(body: Box<ASTTree>, condition: Box<ASTTree>, mut file: &File,
     process_expression(*condition, file, stack_ind, var_map.clone(),
     label_counter, fn_validator);
     // 3. If it is false, exit
-    write_wrapper(write!(file, "cmpq $0, %rax\n"));
-    write_wrapper(write!(file, "je {}\n", end_of_loop_label));
+    write_wrapper(write!(file, "\tcmpq \t$0, %rax\n"));
+    write_wrapper(write!(file, "\tje \t{}\n", end_of_loop_label));
     // 4. Jump to step 1
-    write_wrapper(write!(file, "jmp {}\n", start_label));
+    write_wrapper(write!(file, "\tjmp \t{}\n", start_label));
 
     write_wrapper(write!(file, "{}:\n", end_of_loop_label));
 }
@@ -595,7 +596,7 @@ fn process_compound(block_list: Vec<Box<ASTTree>>, mut file: &File,
 
     // deallocate vars
     let bytes_to_dealloc = 8 * curr_scope.len();
-    write_wrapper(write!(file, "addq ${}, %rsp\n", bytes_to_dealloc));
+    write_wrapper(write!(file, "\taddq \t${}, %rsp\n", bytes_to_dealloc));
 
     return (stack_ind, var_map)
 }
@@ -613,8 +614,8 @@ fn process_conditional(tree: ASTTree, mut file: &File, stack_ind: i32,
 
                     process_expression(*condition, file, stack_ind, 
                         var_map.clone(), label_counter, fn_validator);
-                    write_wrapper(write!(file, "cmpq $0, %rax\n"));
-                    write_wrapper(write!(file, "je {}\n", label_a));
+                    write_wrapper(write!(file, "\tcmpq \t$0, %rax\n"));
+                    write_wrapper(write!(file, "\tje \t{}\n", label_a));
 
                     process_statement(*s1, file, 
                         stack_ind, var_map, label_counter, c_label_opt,
@@ -631,13 +632,13 @@ fn process_conditional(tree: ASTTree, mut file: &File, stack_ind: i32,
                     process_expression(*condition, file, stack_ind, 
                         var_map.clone(), label_counter, fn_validator);
 
-                    write_wrapper(write!(file, "cmpq $0, %rax\n"));
-                    write_wrapper(write!(file, "je {}\n", label_a));
+                    write_wrapper(write!(file, "\tcmpq \t$0, %rax\n"));
+                    write_wrapper(write!(file, "\tje \t{}\n", label_a));
 
                     process_statement(*s1, file, 
                         stack_ind, var_map.clone(), label_counter,
                     c_label_opt.clone(), b_label_opt.clone(), fn_validator);
-                    write_wrapper(write!(file, "jmp {}\n", label_b));
+                    write_wrapper(write!(file, "\tjmp \t{}\n", label_b));
 
                     write_wrapper(write!(file, "{}:\n", label_a));
                     process_statement(*s2, file, 
@@ -659,18 +660,18 @@ fn process_expression(tree: ASTTree, mut file: &File, stack_ind: i32,
     {
     match tree {
         ASTTree::Constant(x) => {
-            write_wrapper(write!(file, "movq ${}, %rax\n", x));
+            write_wrapper(write!(file, "\tmovq \t${}, %rax\n", x));
         },
         ASTTree::UnaryOp(op, child) => {
             process_expression(*child, file, stack_ind, 
                 var_map, label_counter, fn_validator);
             match op {
-                Token::TNeg => write_wrapper(write!(file, "neg %rax\n")),
-                Token::TBitComp => write_wrapper(write!(file, "not %rax\n")),
+                Token::TNeg => write_wrapper(write!(file, "\tneg \t%rax\n")),
+                Token::TBitComp => write_wrapper(write!(file, "\tnot \t%rax\n")),
                 Token::TLNeg => {
-                    write_wrapper(write!(file, "cmpq $0, %rax\n"));
-                    write_wrapper(write!(file, "movq $0, %rax\n"));
-                    write_wrapper(write!(file, "sete %al\n"));
+                    write_wrapper(write!(file, "\tcmpq \t$0, %rax\n"));
+                    write_wrapper(write!(file, "\tmovq \t$0, %rax\n"));
+                    write_wrapper(write!(file, "\tsete \t%al\n"));
                 },
                 _ => panic!("Invalid operator found in unaryOp code gen"),
             }
@@ -685,11 +686,11 @@ fn process_expression(tree: ASTTree, mut file: &File, stack_ind: i32,
                 Some(&ref inner) => 
                     match inner {
                         VarType::Reg(register) => write_wrapper(write!(file, 
-                            "movq %{}, %rax\n", register)),
+                            "\tmovq \t%{}, %rax\n", register)),
                         VarType::Stk(offset) => write_wrapper(write!(file, 
-                            "movq {}(%rbp), %rax\n", offset)),
+                            "\tmovq \t{}(%rbp), %rax\n", offset)),
                         VarType::Global(id) => write_wrapper(write!(file,
-                        "movq _{}(%rip), %rax\n", id)),
+                        "\tmovq \t_{}(%rip), %rax\n", id)),
                     },
             }
         },
@@ -702,11 +703,11 @@ fn process_expression(tree: ASTTree, mut file: &File, stack_ind: i32,
                 Some(&ref inner) => 
                     match inner {
                         VarType::Reg(register) => write_wrapper(write!(file, 
-                            "movq %rax, %{}\n", register)),
+                            "\tmovq \t%rax, %{}\n", register)),
                         VarType::Stk(offset) => write_wrapper(write!(file, 
-                            "movq %rax, {}(%rbp)\n", offset)),
+                            "\tmovq \t%rax, {}(%rbp)\n", offset)),
                         VarType::Global(id) => write_wrapper(write!(file,
-                            "movq %rax, _{}(%rip)\n", id)),
+                            "\tmovq \t%rax, _{}(%rip)\n", id)),
                     },
             }     
         },
@@ -718,13 +719,13 @@ fn process_expression(tree: ASTTree, mut file: &File, stack_ind: i32,
             process_expression(*e1, file, stack_ind, var_map.clone(), label_counter,
             fn_validator);
 
-            write_wrapper(write!(file, "cmpq $0, %rax\n"));
-            write_wrapper(write!(file, "je {}\n", label_a));
+            write_wrapper(write!(file, "\tcmpq \t$0, %rax\n"));
+            write_wrapper(write!(file, "\tje \t{}\n", label_a));
 
             process_expression(*e2, file, stack_ind, var_map.clone(), label_counter,
             fn_validator);
 
-            write_wrapper(write!(file, "jmp {}\n", label_b));
+            write_wrapper(write!(file, "\tjmp \t{}\n", label_b));
 
             write_wrapper(write!(file, "{}:\n", label_a));
 
@@ -748,11 +749,11 @@ fn write_arithmetic_partial(left: ASTTree, right: ASTTree,
 
     process_expression(left, file, stack_ind, var_map.clone(), label_counter,
     fn_validator);
-    write_wrapper(write!(file, "push %rax\n"));
+    write_wrapper(write!(file, "\tpush \t%rax\n"));
     process_expression(right, file, stack_ind, var_map, label_counter,
         fn_validator);
     // e1 in r13, e2 in rax
-    write_wrapper(write!(file, "pop %r13\n"));
+    write_wrapper(write!(file, "\tpop \t%r13\n"));
 }
 
 fn write_relational_partial(left: ASTTree, right: ASTTree,  
@@ -761,12 +762,13 @@ fn write_relational_partial(left: ASTTree, right: ASTTree,
 
     process_expression(left, file, stack_ind, var_map.clone(), label_counter,
     fn_validator);
-    write_wrapper(write!(file, "push %rax\n"));
-    process_expression(right, file, stack_ind, var_map, label_counter, fn_validator);
+    write_wrapper(write!(file, "\tpush \t%rax\n"));
+    process_expression(right, file, stack_ind, var_map, label_counter, 
+        fn_validator);
     // e1 in r13, e2 in rax
-    write_wrapper(write!(file, "pop %r13\n"));
-    write_wrapper(write!(file, "cmpq %rax, %r13\n"));
-    write_wrapper(write!(file, "movq $0, %rax\n"));
+    write_wrapper(write!(file, "\tpop \t%r13\n"));
+    write_wrapper(write!(file, "\tcmpq \t%rax, %r13\n"));
+    write_wrapper(write!(file, "\tmovq \t$0, %rax\n"));
 
 }
 
@@ -778,73 +780,73 @@ fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File,
         Token::TAdd => {
             write_arithmetic_partial(left, right, file, stack_ind,
             var_map, label_counter, fn_validator);
-            write_wrapper(write!(file, "addq %r13, %rax\n"));
+            write_wrapper(write!(file, "\taddq \t%r13, %rax\n"));
         },
         
         Token::TMultiply => {
             write_arithmetic_partial(left, right, file, stack_ind,
                 var_map, label_counter, fn_validator);
-            write_wrapper(write!(file, "imul %r13, %rax\n"));
+            write_wrapper(write!(file, "\timul \t%r13, %rax\n"));
         },
 
         Token::TBitAnd => {
             write_arithmetic_partial(left, right, file, stack_ind, 
                 var_map, label_counter, fn_validator);
-            write_wrapper(write!(file, "and %r13, %rax\n"));
+            write_wrapper(write!(file, "\tand \t%r13, %rax\n"));
         }
 
         Token::TBitOr => {
             write_arithmetic_partial(left, right, file, stack_ind, 
                 var_map, label_counter, fn_validator);
-            write_wrapper(write!(file, "or %r13, %rax\n"));
+            write_wrapper(write!(file, "\tor \t%r13, %rax\n"));
         }
 
         Token::TXor => {
             write_arithmetic_partial(left, right, file, stack_ind, 
                 var_map, label_counter, fn_validator);
-            write_wrapper(write!(file, "xorq %r13, %rax\n"));
+            write_wrapper(write!(file, "\txorq \t%r13, %rax\n"));
         }
 
         Token::TRShift => {
             write_arithmetic_partial(left, right, file, stack_ind, 
                 var_map, label_counter, fn_validator);
-            write_wrapper(write!(file, "push %rax\n"));
-            write_wrapper(write!(file, "movq %r13, %rax\n"));
-            write_wrapper(write!(file, "pop %r13\n"));
-            write_wrapper(write!(file, "sarq %cl, %rax\n"));
+            write_wrapper(write!(file, "\tpush \t%rax\n"));
+            write_wrapper(write!(file, "\tmovq \t%r13, %rax\n"));
+            write_wrapper(write!(file, "\tpop \t%r13\n"));
+            write_wrapper(write!(file, "\tsarq \t%cl, %rax\n"));
         }
 
         Token::TLShift => {
             write_arithmetic_partial(left, right, file, stack_ind, 
                 var_map, label_counter, fn_validator);
-            write_wrapper(write!(file, "push %rax\n"));
-            write_wrapper(write!(file, "movq %r13, %rax\n"));
-            write_wrapper(write!(file, "pop %r13\n"));
-            write_wrapper(write!(file, "shl %cl, %rax\n"));
+            write_wrapper(write!(file, "\tpush \t%rax\n"));
+            write_wrapper(write!(file, "\tmovq \t%r13, %rax\n"));
+            write_wrapper(write!(file, "\tpop \t%r13\n"));
+            write_wrapper(write!(file, "\tshl \t%cl, %rax\n"));
         }
 
         Token::TNeg => {
             write_arithmetic_partial(left, right, file, stack_ind,
                 var_map, label_counter, fn_validator);
             // want e1 in rax, e2 in ecx
-            write_wrapper(write!(file, "movq %r13, %r12\n"));
+            write_wrapper(write!(file, "\tmovq \t%r13, %r12\n"));
             // e1 in rbx, e2 in rax
-            write_wrapper(write!(file, "movq %rax, %r13\n"));
+            write_wrapper(write!(file, "\tmovq \t%rax, %r13\n"));
             // e1 in rbx, e2 in r13
-            write_wrapper(write!(file, "movq %r12, %rax\n"));
+            write_wrapper(write!(file, "\tmovq \t%r12, %rax\n"));
             // e1 in rax, e2 in r13
-            write_wrapper(write!(file, "subq %r13, %rax\n"));
+            write_wrapper(write!(file, "\tsubq \t%r13, %rax\n"));
         },
         Token::TDivide => {
             write_arithmetic_partial(left, right, file, stack_ind,
                 var_map, label_counter, fn_validator);
             // Move e2 into r14 
-            write_wrapper(write!(file, "movq %rax, %r14\n"));
+            write_wrapper(write!(file, "\tmovq \t%rax, %r14\n"));
             // Move e1 to rax
-            write_wrapper(write!(file, "movq %r13, %rax\n"));
+            write_wrapper(write!(file, "\tmovq \t%r13, %rax\n"));
             // Sign extend into r12
-            write_wrapper(write!(file, "cqo\n"));
-            write_wrapper(write!(file, "idivq %r14\n"));
+            write_wrapper(write!(file, "\tcqo\n"));
+            write_wrapper(write!(file, "\tidivq \t%r14\n"));
         },
         Token::TMod => {
             write_arithmetic_partial(left, right, file, stack_ind,
@@ -858,38 +860,38 @@ fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File,
             
             // Temporarily store %r12, %r14 on stack
             // Top of stack in order: %r12, %r14
-            write_wrapper(write!(file, "push %r14\n"));
-            write_wrapper(write!(file, "push %r12\n"));
-            write_wrapper(write!(file, "movq %rax, %r14\n"));
+            write_wrapper(write!(file, "\tpush \t%r14\n"));
+            write_wrapper(write!(file, "\tpush \t%r12\n"));
+            write_wrapper(write!(file, "\tmovq \t%rax, %r14\n"));
 
             // Clear out %r12, %r13 -> %rax
-            write_wrapper(write!(file, "xorq %r12, %r12\n"));
-            write_wrapper(write!(file, "movq %r13, %rax\n"));
+            write_wrapper(write!(file, "\txorq \t%r12, %r12\n"));
+            write_wrapper(write!(file, "\tmovq \t%r13, %rax\n"));
 
             // %r12:%rax div %r14 
-            write_wrapper(write!(file, "divq %r14\n"));
+            write_wrapper(write!(file, "\tdivq \t%r14\n"));
             // Move remainder to %rax
-            write_wrapper(write!(file, "movq %r12, %rax\n"));
+            write_wrapper(write!(file, "\tmovq \t%r12, %rax\n"));
 
             // Restore %r12, %r14
-            write_wrapper(write!(file, "pop %r12\n"));
-            write_wrapper(write!(file, "pop %r14\n"));
+            write_wrapper(write!(file, "\tpop \t%r12\n"));
+            write_wrapper(write!(file, "\tpop \t%r14\n"));
         }
         Token::TAnd => {
             let label_a = get_unique_label(label_counter);
             let label_b = get_unique_label(label_counter);
             process_expression(left, file, stack_ind, var_map.clone(), 
             label_counter, fn_validator);
-            write_wrapper(write!(file, "cmpq $0, %rax\n"));
-            write_wrapper(write!(file, "jne {}\n", label_a));
-            write_wrapper(write!(file, "jmp {}\n", label_b));
+            write_wrapper(write!(file, "\tcmpq \t$0, %rax\n"));
+            write_wrapper(write!(file, "\tjne {}\n", label_a));
+            write_wrapper(write!(file, "\tjmp {}\n", label_b));
 
             write_wrapper(write!(file, "{}:\n", label_a));
             process_expression(right, file, stack_ind, var_map, label_counter,
                 fn_validator);
-            write_wrapper(write!(file, "cmpq $0, %rax\n"));
-            write_wrapper(write!(file, "movq $0, %rax\n"));
-            write_wrapper(write!(file, "setne %al\n"));
+            write_wrapper(write!(file, "\tcmpq \t$0, %rax\n"));
+            write_wrapper(write!(file, "\tmovq \t$0, %rax\n"));
+            write_wrapper(write!(file, "\tsetne \t%al\n"));
 
             write_wrapper(write!(file, "{}:\n", label_b));
         },
@@ -898,17 +900,17 @@ fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File,
             let label_b = get_unique_label(label_counter);
             process_expression(left, file, stack_ind, var_map.clone(), 
             label_counter, fn_validator);
-            write_wrapper(write!(file, "cmpq $0, %rax\n"));
-            write_wrapper(write!(file, "je {}\n", label_a));
-            write_wrapper(write!(file, "movq $1, %rax\n"));
-            write_wrapper(write!(file, "jmp {}\n", label_b));
+            write_wrapper(write!(file, "\tcmpq \t$0, %rax\n"));
+            write_wrapper(write!(file, "\tje \t{}\n", label_a));
+            write_wrapper(write!(file, "\tmovq \t$1, %rax\n"));
+            write_wrapper(write!(file, "\tjmp \t{}\n", label_b));
             
             write_wrapper(write!(file, "{}:\n", label_a));
             process_expression(right, file, stack_ind, var_map, label_counter,
                 fn_validator);
-            write_wrapper(write!(file, "cmpq $0, %rax\n"));
-            write_wrapper(write!(file, "movq $0, %rax\n"));
-            write_wrapper(write!(file, "setne %al\n"));
+            write_wrapper(write!(file, "\tcmpq \t$0, %rax\n"));
+            write_wrapper(write!(file, "\tmovq \t$0, %rax\n"));
+            write_wrapper(write!(file, "\tsetne \t%al\n"));
 
             write_wrapper(write!(file, "{}:\n", label_b));
             
@@ -916,32 +918,32 @@ fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File,
         Token::TEq => {
             write_relational_partial(left, right, file, stack_ind,
             var_map, label_counter, fn_validator);
-            write_wrapper(write!(file, "sete %al\n"));
+            write_wrapper(write!(file, "\tsete \t%al\n"));
         },
         Token::TNeq => {
             write_relational_partial(left, right, file, stack_ind,
                 var_map, label_counter, fn_validator);
-            write_wrapper(write!(file, "setne %al\n"));
+            write_wrapper(write!(file, "\tsetne \t%al\n"));
         },
         Token::TLess => {
             write_relational_partial(left, right, file, stack_ind,
                 var_map, label_counter, fn_validator);
-            write_wrapper(write!(file, "setl %al\n"));
+            write_wrapper(write!(file, "\tsetl \t%al\n"));
         },
         Token::TLeq => {
             write_relational_partial(left, right, file, stack_ind,
                 var_map, label_counter, fn_validator);
-            write_wrapper(write!(file, "setle %al\n"));
+            write_wrapper(write!(file, "\tsetle \t%al\n"));
         },
         Token::TGreater => {
             write_relational_partial(left, right, file, stack_ind,
                 var_map, label_counter, fn_validator);
-            write_wrapper(write!(file, "setg %al\n"));
+            write_wrapper(write!(file, "\tsetg \t%al\n"));
         },
         Token::TGeq => {
             write_relational_partial(left, right, file, stack_ind,
                 var_map, label_counter, fn_validator);
-             write_wrapper(write!(file, "setge %al\n"));
+             write_wrapper(write!(file, "\tsetge \t%al\n"));
         },
 
         _ => panic!("Invalid operator found in binaryOp code gen"),
@@ -954,7 +956,7 @@ fn process_return(tree: ASTTree, mut file: &File, stack_ind: i32,
     process_expression(tree, file, stack_ind, var_map, label_counter,
         fn_validator);
     write_epilogue(file);
-    write_wrapper(write!(file, "{}", "retq\n"));
+    write_wrapper(write!(file, "{}", "\tretq\n"));
 }
 
 fn process_declare(tree: ASTTree, mut file: &File, mut stack_ind: i32, 
@@ -971,15 +973,15 @@ fn process_declare(tree: ASTTree, mut file: &File, mut stack_ind: i32,
             match child_opt {
                 // Declared with no initialization
                 None => {
-                    write_wrapper(write!(file, "movq $0, %rax\n"));
-                    write_wrapper(write!(file, "push %rax\n"));
+                    write_wrapper(write!(file, "\tmovq \t$0, %rax\n"));
+                    write_wrapper(write!(file, "\tpush \t%rax\n"));
                 },
 
                 // Declared with initialization
                 Some(inner_child) => {
                     process_expression(*inner_child, file, stack_ind, 
                         var_map.clone(), label_counter, fn_validator);
-                    write_wrapper(write!(file, "push %rax\n"));
+                    write_wrapper(write!(file, "\tpush \t%rax\n"));
                 },
             }
 
@@ -994,12 +996,12 @@ fn process_declare(tree: ASTTree, mut file: &File, mut stack_ind: i32,
 }
 
 fn write_global(id: String, mut file: &File, x: i64) {
-    write_wrapper(write!(file, ".data\n"));
-    write_wrapper(write!(file, ".globl _{}\n", id));
-    write_wrapper(write!(file, ".p2align 2\n"));
+    write_wrapper(write!(file, "\t.data\n"));
+    write_wrapper(write!(file, "\t.globl _{}\n", id));
+    write_wrapper(write!(file, "\t.p2align 2\n"));
     write_wrapper(write!(file, "_{}:\n", id));
-    write_wrapper(write!(file, ".long {}\n", x));
-    write_wrapper(write!(file, ".text\n"));
+    write_wrapper(write!(file, "\t.long {}\n", x));
+    write_wrapper(write!(file, "\t.text\n"));
 }
 
 fn process_global_declare(id: String, inner_child_opt: Option<Box<ASTTree>>,

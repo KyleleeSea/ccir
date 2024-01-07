@@ -5,6 +5,7 @@ use super::types::ASTTree;
 use super::types::Token;
 use super::types::VarType;
 use super::types::FnType;
+use super::types::GlobalType;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -65,14 +66,20 @@ pub fn generate(tree: ASTTree) {
       fs::remove_file("assembly.s").unwrap();
     }
 
-    let file = OpenOptions::new()
+    let mut file = OpenOptions::new()
         .create(true)
         .append(true)
         .open("assembly.s")
         .unwrap();
 
     let mut label_counter : i32 = 0;
-    let mut fn_validator : HashMap<String, FnType> = HashMap::new();
+    let mut fn_validator : HashMap<String, FnType> = HashMap::new();    
+    let mut globals_validator : HashMap<String, GlobalType> = HashMap::new();
+    let mut fn_names : HashSet<String> = HashSet::new();
+    let mut global_names : HashSet<String> = HashSet::new();    
+    // 5 = number of args we push in prologue
+    let mut stack_ind : i32 = -8 * 5;
+    let mut var_map = HashMap::new();
     
     match tree {
         ASTTree::Program(children) => {
@@ -119,16 +126,45 @@ pub fn generate(tree: ASTTree) {
 
                             },
                         }
+
+                        match global_names.get(&id) {
+                            Some(&ref _name) => panic!("reuse of label for both
+                            function and global variable not allowed"),
+                            None => ()
+                        };
+
+                        fn_names.insert(id.clone());
+
                         // Validation end
 
-                        process_function(id, args, bodyopt, &file, 
-                            &mut label_counter, &fn_validator);
+                        process_function(id, args, bodyopt, &file, stack_ind,
+                            var_map.clone(), &mut label_counter, &fn_validator);
                         },
+
+                    ASTTree::Declare(id, inner_child) => {
+                        match fn_names.get(&id) {
+                            Some(&ref _name) => panic!("reuse of label for both
+                            function and global variable not allowed"),
+                            None => ()
+                        };
+
+                        global_names.insert(id.clone());
+
+                        (var_map, globals_validator) = process_global_declare(id, 
+                            inner_child, &file, var_map, globals_validator);
+                    },
                     _ => invalid_match("program")
                 }
             }
         },
         _ => invalid_match("generate"),
+    }
+
+    // Post-processing, put all uninitialized globals in common
+    for (id, state) in globals_validator {
+        if state == GlobalType::Decl {
+            write_wrapper(write!(file, ".comm _{},4,2\n",id));
+        }
     }
 
     Command::new("gcc")
@@ -141,7 +177,8 @@ pub fn generate(tree: ASTTree) {
 
 // Callee
 fn process_function(id: String, args: Vec<String>, bodyopt: Option<Box<ASTTree>>, 
-    mut file: &File, label_counter: &mut i32, 
+    mut file: &File, mut stack_ind: i32, 
+    mut var_map: HashMap<String, VarType>, label_counter: &mut i32, 
     fn_validator: &HashMap<String, FnType>) {
 
     match bodyopt {
@@ -154,9 +191,6 @@ fn process_function(id: String, args: Vec<String>, bodyopt: Option<Box<ASTTree>>
             // write_prologue takes care of callee saving
             write_prologue(&file);
 
-            // 5 = number of args we push in prologue
-            let mut stack_ind : i32 = -8 * 5;
-            let mut var_map = HashMap::new();
             // +8 ebp pushed, +8 return addr pushed because of call
             let mut param_offset = 16;
             let mut curr_scope = HashSet::new();
@@ -654,6 +688,8 @@ fn process_expression(tree: ASTTree, mut file: &File, stack_ind: i32,
                             "movq %{}, %rax\n", register)),
                         VarType::Stk(offset) => write_wrapper(write!(file, 
                             "movq {}(%rbp), %rax\n", offset)),
+                        VarType::Global(id) => write_wrapper(write!(file,
+                        "movq _{}(%rip), %rax\n", id)),
                     },
             }
         },
@@ -669,6 +705,8 @@ fn process_expression(tree: ASTTree, mut file: &File, stack_ind: i32,
                             "movq %rax, %{}\n", register)),
                         VarType::Stk(offset) => write_wrapper(write!(file, 
                             "movq %rax, {}(%rbp)\n", offset)),
+                        VarType::Global(id) => write_wrapper(write!(file,
+                            "movq %rax, _{}(%rip)\n", id)),
                     },
             }     
         },
@@ -908,8 +946,6 @@ fn process_binary_op(left: ASTTree, op: Token, right: ASTTree,  mut file: &File,
 
         _ => panic!("Invalid operator found in binaryOp code gen"),
     }
-    
-
 }
 
 fn process_return(tree: ASTTree, mut file: &File, stack_ind: i32, 
@@ -955,4 +991,52 @@ fn process_declare(tree: ASTTree, mut file: &File, mut stack_ind: i32,
     };
 
     return (stack_ind, var_map, curr_scope);
+}
+
+fn write_global(id: String, mut file: &File, x: i64) {
+    write_wrapper(write!(file, ".data\n"));
+    write_wrapper(write!(file, ".globl _{}\n", id));
+    write_wrapper(write!(file, ".p2align 2\n"));
+    write_wrapper(write!(file, "_{}:\n", id));
+    write_wrapper(write!(file, ".long {}\n", x));
+    write_wrapper(write!(file, ".text\n"));
+}
+
+fn process_global_declare(id: String, inner_child_opt: Option<Box<ASTTree>>,
+    mut file: &File, mut var_map: HashMap<String, VarType>, mut 
+    globals_validator: HashMap<String, GlobalType>)
+    -> (HashMap<String, VarType>, HashMap<String, GlobalType>) {
+
+    match inner_child_opt {
+        // Declaration
+        None => {
+            var_map.insert(id.clone(), VarType::Global(id.clone()));
+            globals_validator.insert(id.clone(), GlobalType::Decl);
+        },
+
+        Some(inner_child) => {
+            match *inner_child {
+                ASTTree::Constant(x) => {
+                    // Validation: Global vars cannot be defined multiple times
+                    match globals_validator.get(&id) {
+                        Some(&GlobalType::Defn) => panic!("cannot define
+                            global variables multiple times"),
+                        _ => {
+                            var_map.insert(id.clone(), 
+                                VarType::Global(id.clone()));
+                            globals_validator.insert(id.clone(), 
+                                GlobalType::Defn);
+                            write_global(id, file, x);
+                        },
+                    };
+
+
+                },
+                _ => panic!("Non-constant expression found in global var defn!")
+            }
+            
+        }
+    }
+
+    return (var_map, globals_validator)
 }
